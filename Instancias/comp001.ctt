@@ -1,0 +1,97 @@
+Name: Fis0506-1
+Courses: 30
+Rooms: 6
+Days: 5
+Periods_per_day: 6
+Curricula: 14
+Constraints: 53
+
+Com 5 dias e 6 periodos por dia, temos 30 periodos por semana
+ou seja, 30 timeslots = uma Matriz 5x6
+
+Pelo que ta escrito no artigo, ele prefere criar 2 matrizes de feromonio
+do que uma só de 3 dimensões
+
+Matriz de feromônio courses X timeslots (30x30):
+	- Cada linha representa uma disciplina
+	- Cada coluna representa um timeslot
+	- Cada célula representa a quantidade de feromônio daquela disciplina naquele timeslot
+
+Matriz de feromônio rooms X timeslots (6x30):
+	- Cada linha representa uma sala
+	- Cada coluna representa um timeslot
+	- Cada célula representa a quantidade de feromônio daquela sala naquele timeslot
+
+
+COURSES; DISCIPLINAS:
+Nome da disciplina; Nome do professor; aulas na semana; numero minimo de dias da semana para essa aula; capacidade
+Exeplo: a disciplinas c0001 com o professor t000 tem 6 aulas na semana, podendo ser distribuido em no minimo
+4 dias da semana, porém tem 130 alunos nessa disciplina
+
+c0001 t000 6 4 130
+c0002 t001 6 4 75 
+c0004 t002 7 3 117 
+c0005 t003 3 3 75
+
+Criação de dicionários para:
+
+DictCourses [index] = 'c0001'
+DictTeachers [index] = 't001'
+DictRooms [index] = 'rB'
+
+Criação de classes:
+
+Class Course{
+  name: String
+  professor: index
+  classesPerWeek: int
+  minDaysPerWeek: int
+  occupancy: int
+}
+
+Class Room {
+	name: String
+	capacity: int
+}
+
+
+ROOMS; Salas:
+Nome da sala; Capacidade da sala
+rB 200 
+rC 100 
+rE 9
+
+CURRICULA:
+Nome; Quantidade N de disciplinas; N Disciplinas
+q000 4 c0001 c0002 c0004 c0005 
+q001 4 c0014 c0015 c0016 c0017 
+q002 4 c0024 c0025 c0001 c0078 
+q003 3 c0030 c0032 c0033 
+q004 3 c0031 c0032 c0033 
+q005 3 c0070 c0066 c0072 
+
+
+UNAVAILABILITY_CONSTRAINTS (Lista de indisponibilidades):
+Nome da disciplina; Dia indisponivel; Horário indisponivel
+c0001 4 0 
+c0001 4 1 
+c0001 4 2 
+c0001 4 3 
+c0001 4 4 
+c0001 4 5 
+c0004 0 0 
+c0004 0 1 
+c0004 0 2 
+c0004 0 3 
+c0004 0 4 
+c0004 0 5 
+c0024 3 0 
+c0024 3 1 
+c0024 3 2 
+c0024 3 3 
+c0024 3 4 
+c0024 3 5 
+c0025 2 2 
+
+
+END.
