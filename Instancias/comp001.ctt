@@ -1,97 +1,68 @@
-Name: Fis0506-1
-Courses: 30
-Rooms: 6
+Name: Toy
+Courses: 4
+Rooms: 3
 Days: 5
-Periods_per_day: 6
-Curricula: 14
-Constraints: 53
+Periods_per_day: 4
+Curricula: 2
+Constraints: 8
 
-Com 5 dias e 6 periodos por dia, temos 30 periodos por semana
-ou seja, 30 timeslots = uma Matriz 5x6
+Salas e intervalos de tempo foram combinados em um único vértice
+e as arestas conectam um Curso Ci a um RoomPeriod RjPk se a
+programação do curso nessa sala e período não violar nenhuma
+restrição de período indisponível (HC5) e a diferença entre a
+capacidade da sala e o tamanho do curso não for superior a um;
+minimizando assim SC1. Essa representação garante que HC5 não
+pode ser violada e SC1 é minimizado em qualquer solução de horário
+ gerada. A ilustração da representação do grafo é mostrada na Figura 1
 
-Pelo que ta escrito no artigo, ele prefere criar 2 matrizes de feromonio
-do que uma só de 3 dimensões
+Periods per day: 4
+Days: 5
+Rooms: 3
 
-Matriz de feromônio courses X timeslots (30x30):
-	- Cada linha representa uma disciplina
-	- Cada coluna representa um timeslot
-	- Cada célula representa a quantidade de feromônio daquela disciplina naquele timeslot
+time_slots = 20 (5 dias * 4 periodos por dia)
+rooms = 3
 
-Matriz de feromônio rooms X timeslots (6x30):
-	- Cada linha representa uma sala
-	- Cada coluna representa um timeslot
-	- Cada célula representa a quantidade de feromônio daquela sala naquele timeslot
+Cada sala possui 20 time_slots
+Então, temos 60 rooms_time_slots
 
+Então criamos uma matriz de feromonio de 4 disciplinas por 60 rooms_time_slots
+
+Representativamente:
+					day0                day1                      day0                 day1                day2
+xx R0T0 R0T1 R0T2 R0T3 R0T4 R0T5 R0T6 R0T7 ... R0T19  R1T0 R1T1 R1T2 R1T3 R1T4 R1T5 R1T6 R1T7 R1T8 R1T9 R1T10 R1T11 ... R1T19 R2T0 R2T1 R2T2 R2T3 ... R2T19
+C0
+C1
+C2
+C3
 
 COURSES; DISCIPLINAS:
 Nome da disciplina; Nome do professor; aulas na semana; numero minimo de dias da semana para essa aula; capacidade
 Exeplo: a disciplinas c0001 com o professor t000 tem 6 aulas na semana, podendo ser distribuido em no minimo
 4 dias da semana, porém tem 130 alunos nessa disciplina
 
-c0001 t000 6 4 130
-c0002 t001 6 4 75 
-c0004 t002 7 3 117 
-c0005 t003 3 3 75
+COURSES:
+SceCosC Ocra 3 3 30
+ArcTec Indaco 4 3 42
+TecCos Rosa 3 4 40
+Geotec Scarlatti 3 4 18
 
-Criação de dicionários para:
-
-DictCourses [index] = 'c0001'
-DictTeachers [index] = 't001'
-DictRooms [index] = 'rB'
-
-Criação de classes:
-
-Class Course{
-  name: String
-  professor: index
-  classesPerWeek: int
-  minDaysPerWeek: int
-  occupancy: int
-}
-
-Class Room {
-	name: String
-	capacity: int
-}
-
-
-ROOMS; Salas:
-Nome da sala; Capacidade da sala
-rB 200 
-rC 100 
-rE 9
+ROOMS:
+rA 32
+rB 50
+rC 40
 
 CURRICULA:
-Nome; Quantidade N de disciplinas; N Disciplinas
-q000 4 c0001 c0002 c0004 c0005 
-q001 4 c0014 c0015 c0016 c0017 
-q002 4 c0024 c0025 c0001 c0078 
-q003 3 c0030 c0032 c0033 
-q004 3 c0031 c0032 c0033 
-q005 3 c0070 c0066 c0072 
+Cur1 3 SceCosC ArcTec TecCos
+Cur2 2 TecCos Geotec
 
-
-UNAVAILABILITY_CONSTRAINTS (Lista de indisponibilidades):
-Nome da disciplina; Dia indisponivel; Horário indisponivel
-c0001 4 0 
-c0001 4 1 
-c0001 4 2 
-c0001 4 3 
-c0001 4 4 
-c0001 4 5 
-c0004 0 0 
-c0004 0 1 
-c0004 0 2 
-c0004 0 3 
-c0004 0 4 
-c0004 0 5 
-c0024 3 0 
-c0024 3 1 
-c0024 3 2 
-c0024 3 3 
-c0024 3 4 
-c0024 3 5 
-c0025 2 2 
-
+UNAVAILABILITY_CONSTRAINTS:
+TecCos 2 0
+TecCos 2 1
+TecCos 3 2
+TecCos 3 3
+ArcTec 4 0
+ArcTec 4 1
+ArcTec 4 2
+ArcTec 4 3
 
 END.

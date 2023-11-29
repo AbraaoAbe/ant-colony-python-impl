@@ -15,16 +15,23 @@
 # – H1-Aulas: Todas as aulas de uma disciplina devem ser alocadas, e em períodos
 # diferentes. Uma violação ocorre se uma aula não é alocada, ou se duas aulas da
 # mesma disciplina são alocadas no mesmo período.
+# Solução -> Contar aulas não alocadas {not_allocated_classes}
+
+
 # – H2-Ocupação de Sala: Duas aulas não podem ser alocadas em uma mesma sala
 # e no mesmo período. Cada aula extra em uma mesma sala e no mesmo período
 # conta como uma violação.
+
+
 # – H3-Conflitos: Aulas de disciplinas de um mesmo currículo, ou ministradas
 # pelo mesmo professor devem ser alocadas em períodos diferentes. Duas aulas
 # conflitantes no mesmo período representa uma violação.
+
 # – H4-Indisponibilidade: Se o professor de uma disciplina não está disponível para
 # lecioná-la em determinado período, nenhuma aula dessa disciplina pode ser
 # alocada nesse período. Cada aula alocada em um período não disponível para a
 # disciplina conta como uma violação.
+
 #### Restrições Fracas:
 # – S1-Capacidade de Sala: Para cada disciplina, o número de alunos que está
 # matriculado na disciplina deve ser menor ou igual ao número de assentos
@@ -42,7 +49,7 @@
 # primeira, contam como uma violação.
 
 yy_benchmark = 108
-timeslots = 0
+
 
 
 class Problem:
@@ -55,15 +62,15 @@ class Problem:
 		self.curricula = curricula
 		self.constraints = constraints
 
-
 	def __str__(self):
 		return "Nome: " + self.name + "\n" + "Disciplinas: " + str(self.courses) + "\n" + "Salas: " + str(self.rooms) + "\n" + "Dias: " + str(self.days) + "\n" + "Períodos por dia: " + str(self.periods_per_day) + "\n" + "Currículos: " + str(self.curricula) + "\n" + "Restrições: " + str(self.constraints) + "\n"
 
 class Course:
-	def __init__(self, name, teacher, classesPerWeek, min_days, occupancy):
+	def __init__(self, name, teacher, classes_per_week, min_days, occupancy):
 		self.name = name
 		self.teacher = teacher
-		self.classesPerWeek = classesPerWeek
+		self.classes_per_week = classes_per_week
+		self.not_allocated_classes = classes_per_week
 		self.min_days = min_days
 		self.occupancy = occupancy
 		self.constraint_matrix = []
@@ -105,7 +112,7 @@ class Course:
 	def set_owner_curricula(self, curricula):
 		self.owner_curricula = curricula
 	def __str__(self):
-		return "Nome: " + self.name + "\n" + "Professor: " + self.teacher + "\n" + "Aulas por semana: " + str(self.classesPerWeek) + "\n" + "Dias mínimos: " + str(self.min_days) + "\n" + "Alunos: " + str(self.occupancy) + "\n"
+		return "Nome: " + self.name + "\n" + "Professor: " + self.teacher + "\n" + "Aulas por semana: " + str(self.classes_per_week) + "\n" + "Dias mínimos: " + str(self.min_days) + "\n" + "Alunos: " + str(self.occupancy) + "\n"
 
 class Room:
 	def __init__(self, name, capacity):
@@ -115,7 +122,7 @@ class Room:
 	def __str__(self):
 		return "Nome: " + self.name + "\n" + "Capacidade: " + str(self.capacity) + "\n"
 
-class Curricula:
+class Curricula_and_Teacher:
 	def __init__(self, name, size, courses):
 		self.name = name
 		self.size_courses = size
@@ -162,7 +169,7 @@ def read_file(file):
 	curricula = []
 	for i in range(problem.curricula):
 		curriculum = file.readline().split()
-		curricula.append(Curricula(curriculum[0], int(curriculum[1]), curriculum[2:]))
+		curricula.append(Curricula_and_Teacher(curriculum[0], int(curriculum[1]), curriculum[2:]))
 
 	clean_empty_lines(file)
 
@@ -178,10 +185,9 @@ def read_file(file):
 				# Define o timeslot como indisponível na matriz de restrição
 				j.set_constraint_matrix(int(constraint[1]), int(constraint[2]), False)
 				break
-		j.print_constraint_matrix()
 
-	#print_entries(problem, courses, rooms, curricula)
 
+	return problem, courses, rooms, curricula
 
 def print_entries(problem, courses, rooms, curricula):
 	print(problem)
@@ -197,12 +203,59 @@ def print_entries(problem, courses, rooms, curricula):
 	for i in curricula:
 		print(i)
 
+
+def check_if_exists(teacher_name, curricula):
+	for i in curricula:
+		if i.name == teacher_name:
+			return True
+	return False
+def create_teacher_curricula(courses, curricula):
+	for i in courses:
+		if not check_if_exists(i.teacher, curricula):
+			curricula.append(Curricula_and_Teacher(i.teacher, 1, [i.name]))
+		else:
+			for j in curricula:
+				if j.name == i.teacher:
+					j.size_courses += 1
+					j.courses.append(i.name)
+					break
+
+
+class Trail:
+	def __init__(self, problem):
+		self.timeslots = problem.days * problem.periods_per_day
+		self.periods = problem.periods_per_day
+		self.matrix = [[0 for i in range(problem.rooms * self.timeslots)] for j in range(problem.courses)]
+
+	def setTrail(self, course, room, day, period, value=1):
+		self.matrix[course][(room * self.timeslots) + (day * self.periods) + period] = value
+
+	def getTrail(self, course, room, day):
+		return self.matrix[course][(room * self.timeslots) + (day * self.periods) + period]
+
+	def printTrail(self):
+		for i in range(problem.courses):
+			print(self.matrix[i])
+		print("\n")
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 	# read file
 	file = open("Instancias/toy.ctt", "r")
 
-	read_file(file)
+	problem, courses, rooms, curricula = read_file(file)
+
+	create_teacher_curricula(courses, curricula)
+
+	# print_entries(problem, courses, rooms, curricula)
+
+	trail = Trail(problem)
+
+	trail.printTrail()
+
+	trail.setTrail(1, 0, 1, 3)
+
+	trail.printTrail()
 
 
 
