@@ -35,6 +35,20 @@ C1
 C2
 C3
 
+Uma formiga começa em um vértice de Curso aleatório e, em seguida, caminha até um possível
+vértice de SalaPeríodo com uma probabilidade dependente da quantidade de feromônio na aresta,
+adicionando trios de cursos, salas e períodos visitados a uma solução parcial de horário
+inicialmente vazia, até que todos os eventos tenham sido agendados. A probabilidade de que uma
+formiga siga uma aresta é calculada usando a Equação (1). Os vértices possíveis de SalaPeríodo
+são aqueles que não violarão nenhuma restrição rígida quando o triplo de eventos de curso, sala
+e período for adicionado à solução parcial de horário.
+
+Se não existir tal vértice de SalaPeríodo, a formiga caminha até um vértice de SalaPeríodo que
+violará uma restrição rígida com uma probabilidade baseada na trilha de feromônios na aresta e
+no número de restrições rígidas que serão violadas (heurística) quando o triplo de eventos de
+curso, sala e período for adicionado à solução parcial. O peso da aresta na matriz de
+trilha também não é atualizado durante a atualização da trilha.
+
 COURSES; DISCIPLINAS:
 Nome da disciplina; Nome do professor; aulas na semana; numero minimo de dias da semana para essa aula; capacidade
 Exeplo: a disciplinas c0001 com o professor t000 tem 6 aulas na semana, podendo ser distribuido em no minimo

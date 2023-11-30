@@ -1,4 +1,4 @@
-# This is a sample Python script.
+import random as random
 
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
@@ -17,11 +17,9 @@
 # mesma disciplina são alocadas no mesmo período.
 # Solução -> Contar aulas não alocadas {not_allocated_classes}
 
-
 # – H2-Ocupação de Sala: Duas aulas não podem ser alocadas em uma mesma sala
 # e no mesmo período. Cada aula extra em uma mesma sala e no mesmo período
 # conta como uma violação.
-
 
 # – H3-Conflitos: Aulas de disciplinas de um mesmo currículo, ou ministradas
 # pelo mesmo professor devem ser alocadas em períodos diferentes. Duas aulas
@@ -48,6 +46,9 @@
 # na mesma sala. Cada sala distinta usada para aulas dessa disciplina, além da
 # primeira, contam como uma violação.
 
+# sendo que (α1,α2,α3,α4) = (1,5,2,1) representa os pesos atribuídos, respectivamente, a cada
+# uma das restrições fracas S1-S4.
+
 yy_benchmark = 108
 
 
@@ -66,15 +67,16 @@ class Problem:
 		return "Nome: " + self.name + "\n" + "Disciplinas: " + str(self.courses) + "\n" + "Salas: " + str(self.rooms) + "\n" + "Dias: " + str(self.days) + "\n" + "Períodos por dia: " + str(self.periods_per_day) + "\n" + "Currículos: " + str(self.curricula) + "\n" + "Restrições: " + str(self.constraints) + "\n"
 
 class Course:
-	def __init__(self, name, teacher, classes_per_week, min_days, occupancy):
+	def __init__(self, name, teacher, classes_per_week, min_days, occupancy, index_in_trail):
 		self.name = name
 		self.teacher = teacher
+		self.index_in_trail = index_in_trail
 		self.classes_per_week = classes_per_week
 		self.not_allocated_classes = classes_per_week
 		self.min_days = min_days
 		self.occupancy = occupancy
 		self.constraint_matrix = []
-		self.owner_curricula = []
+		self.curricula = []
 
 	def init_constraint_matrix(self, days, periods_per_day):
 		# Inicializa a matriz de restrição com todos os valores como True
@@ -93,8 +95,8 @@ class Course:
 		self.constraint_matrix[period][day] = value
 
 	def check_constraint_matrix(self, day, period):
-		if self.constraint_matriz == []:
-			print("Disciplina não possui restrições")
+		if self.constraint_matrix == []:
+			# print("Disciplina não possui restrições")
 			return True
 		else:
 			# Verifica a disponibilidade de uma posição da matriz de restrição
@@ -109,10 +111,23 @@ class Course:
 			print(self.constraint_matrix[i])
 
 		print("\n")
-	def set_owner_curricula(self, curricula):
-		self.owner_curricula = curricula
+	def add_owner_curricula(self, curricula):
+		self.curricula.append(curricula)
 	def __str__(self):
-		return "Nome: " + self.name + "\n" + "Professor: " + self.teacher + "\n" + "Aulas por semana: " + str(self.classes_per_week) + "\n" + "Dias mínimos: " + str(self.min_days) + "\n" + "Alunos: " + str(self.occupancy) + "\n"
+		curricula_names = []
+		for i in self.curricula:
+			curricula_names.append(i.name)
+		return "Nome: " + self.name + "\n" + "Professor: " + self.teacher + "\n" + "Aulas por semana: " + str(self.classes_per_week) + "\n" + "Dias mínimos: " + str(self.min_days) + "\n" + "Alunos: " + str(self.occupancy) + "\n" + "Currículos: " + str(curricula_names) + "\n"
+
+	# Retorna uma lista com os nomes das disciplinas que possuem conflito com a disciplina atual
+	def get_conflicts_names(self):
+		courses_names = []
+		for i in self.curricula:
+			for j in i.courses:
+				if j != self.name:
+					courses_names.append(j)
+		return courses_names
+
 
 class Room:
 	def __init__(self, name, capacity):
@@ -153,7 +168,7 @@ def read_file(file):
 	courses = []
 	for i in range(problem.courses):
 		course = file.readline().split()
-		courses.append(Course(course[0], course[1], int(course[2]), int(course[3]), int(course[4])))
+		courses.append(Course(course[0], course[1], int(course[2]), int(course[3]), int(course[4]), i))
 
 	clean_empty_lines(file)
 
@@ -209,6 +224,7 @@ def check_if_exists(teacher_name, curricula):
 		if i.name == teacher_name:
 			return True
 	return False
+
 def create_teacher_curricula(courses, curricula):
 	for i in courses:
 		if not check_if_exists(i.teacher, curricula):
@@ -238,16 +254,84 @@ class Trail:
 			print(self.matrix[i])
 		print("\n")
 
+	def check_available(self, course, room, day, period):
+		if self.matrix[course][(room * self.timeslots) + (day * self.periods) + period] == 0:
+			return True
+		else:
+			return False
+
+	# Método para verificar as disciplinas que possuem conflito de período com a disciplina atual
+	# Ela checa o mesmo horário em todas as salas no mesmo período
+	def check_conflicts_same_period(self, courses_indexes, problem, day, period):
+		allrooms = problem.rooms
+		for i in range(allrooms):
+			for j in courses_indexes:
+				if self.matrix[j][(i * self.timeslots) + (day * self.periods) + period] == 1:
+					return False
+		return True
+
+def ant_walk(alpha, beta, trail, courses, problem):
+	not_visited = courses.copy()
+	temporary_walk = Trail(problem)
+
+	for i in range(len(not_visited)):
+		#seleciona uma disciplina aleatória
+		course = not_visited.pop(random.randrange(len(not_visited)))
+
+		while course.not_allocated_classes > 0:
+			#Retorna uma lista de slots viaveis para a disciplina
+			feasible_list = get_feasible_list(temporary_walk, course, problem, courses)
+			if True :
+				print(feasible_list)
+				break
+
+
+#Retorna uma lista de slots viaveis para a disciplina que não violam as restrições fortes
+def get_feasible_list(walk, course, problem, courses):
+	courses_conflicts = course.get_conflicts_names()
+	print(course.name)
+	courses_conflicts_indexes = get_courses_indexes(courses, courses_conflicts)
+	print(courses_conflicts_indexes)
+	feasible_list = []
+	for i in range(problem.rooms):
+		for j in range(problem.days):
+			for k in range(problem.periods_per_day):
+				if walk.check_available(course.index_in_trail, i, j, k) and walk.check_conflicts_same_period(courses_conflicts_indexes, problem, j, k) and course.check_constraint_matrix(j, k):
+					feasible_list.append([i, j, k])
+	return feasible_list
+
+def get_courses_indexes(courses, courses_conflicts):
+	courses_indexes = []
+	for i in courses_conflicts:
+		for j in courses:
+			if i == j.name:
+				courses_indexes.append(j.index_in_trail)
+				break
+	return courses_indexes
+
+#Method to link the course with the curricula that it belongs
+def set_owner_curricula(courses, curricula):
+	for i in curricula:
+		for j in i.courses:
+			for k in courses:
+				if j == k.name:
+					k.add_owner_curricula(i)
+					break
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 	# read file
 	file = open("Instancias/toy.ctt", "r")
+	# file = open("Instancias/comp01.ctt", "r")
 
 	problem, courses, rooms, curricula = read_file(file)
 
 	create_teacher_curricula(courses, curricula)
 
-	# print_entries(problem, courses, rooms, curricula)
+	set_owner_curricula(courses, curricula)
+
+	print_entries(problem, courses, rooms, curricula)
 
 	trail = Trail(problem)
 
@@ -255,9 +339,14 @@ if __name__ == '__main__':
 
 	trail.setTrail(1, 0, 1, 3)
 
-	trail.printTrail()
+	for i in courses:
+		print(i.get_conflicts_names())
+		print("\n")
 
+	#
+	# trail.printTrail()
 
+	ant_walk(2, 8, trail, courses, problem)
 
 
 
