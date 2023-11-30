@@ -49,34 +49,41 @@ no número de restrições rígidas que serão violadas (heurística) quando o t
 curso, sala e período for adicionado à solução parcial. O peso da aresta na matriz de
 trilha também não é atualizado durante a atualização da trilha.
 
-COURSES; DISCIPLINAS:
-Nome da disciplina; Nome do professor; aulas na semana; numero minimo de dias da semana para essa aula; capacidade
-Exeplo: a disciplinas c0001 com o professor t000 tem 6 aulas na semana, podendo ser distribuido em no minimo
-4 dias da semana, porém tem 130 alunos nessa disciplina
+#### Restrições Fortes:
+# – H1-Aulas: Todas as aulas de uma disciplina devem ser alocadas, e em períodos
+# diferentes. Uma violação ocorre se uma aula não é alocada, ou se duas aulas da
+# mesma disciplina são alocadas no mesmo período.
+# Solução -> Contar aulas não alocadas {not_allocated_classes}
 
-COURSES:
-SceCosC Ocra 3 3 30
-ArcTec Indaco 4 3 42
-TecCos Rosa 3 4 40
-Geotec Scarlatti 3 4 18
+# – H2-Ocupação de Sala: Duas aulas não podem ser alocadas em uma mesma sala
+# e no mesmo período. Cada aula extra em uma mesma sala e no mesmo período
+# conta como uma violação.
 
-ROOMS:
-rA 32
-rB 50
-rC 40
+# – H3-Conflitos: Aulas de disciplinas de um mesmo currículo, ou ministradas
+# pelo mesmo professor devem ser alocadas em períodos diferentes. Duas aulas
+# conflitantes no mesmo período representa uma violação.
 
-CURRICULA:
-Cur1 3 SceCosC ArcTec TecCos
-Cur2 2 TecCos Geotec
+# – H4-Indisponibilidade: Se o professor de uma disciplina não está disponível para
+# lecioná-la em determinado período, nenhuma aula dessa disciplina pode ser
+# alocada nesse período. Cada aula alocada em um período não disponível para a
+# disciplina conta como uma violação.
 
-UNAVAILABILITY_CONSTRAINTS:
-TecCos 2 0
-TecCos 2 1
-TecCos 3 2
-TecCos 3 3
-ArcTec 4 0
-ArcTec 4 1
-ArcTec 4 2
-ArcTec 4 3
+#### Restrições Fracas:
+# – S1-Capacidade de Sala: Para cada disciplina, o número de alunos que está
+# matriculado na disciplina deve ser menor ou igual ao número de assentos
+# disponíveis em todas as salas que ocorrem aulas dessa disciplina. Cada aluno
+# acima da capacidade conta como uma violação.
 
-END.
+# – S2-Número Mínimo de Dias de Aula: As aulas de uma disciplina devem ser
+# espalhadas em um número mínimo de dias. Cada dia abaixo do número mínimo
+# de dias conta como uma violação.
+# – S3-Aulas Isoladas: Aulas de disciplinas de um mesmo currículo devem ser
+# adjacentes uma à outra. Para cada currículo, uma violação é contada quando há
+# uma aula não adjacente à nenhuma outra aula do mesmo currículo no mesmo
+# dia.
+# – S4-Estabilidade de Sala: Todas as aulas de uma disciplina devem acontecer
+# na mesma sala. Cada sala distinta usada para aulas dessa disciplina, além da
+# primeira, contam como uma violação.
+
+# sendo que (α1,α2,α3,α4) = (1,5,2,1) representa os pesos atribuídos, respectivamente, a cada
+# uma das restrições fracas S1-S4.

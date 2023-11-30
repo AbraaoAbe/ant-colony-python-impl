@@ -246,7 +246,7 @@ class Trail:
 	def setTrail(self, course, room, day, period, value=1):
 		self.matrix[course][(room * self.timeslots) + (day * self.periods) + period] = value
 
-	def getTrail(self, course, room, day):
+	def getTrail(self, course, room, day, period):
 		return self.matrix[course][(room * self.timeslots) + (day * self.periods) + period]
 
 	def printTrail(self):
@@ -270,7 +270,9 @@ class Trail:
 					return False
 		return True
 
-def ant_walk(alpha, beta, trail, courses, problem):
+
+
+def ant_walk(alpha, beta, trail, courses, problem, rooms):
 	not_visited = courses.copy()
 	temporary_walk = Trail(problem)
 
@@ -281,8 +283,9 @@ def ant_walk(alpha, beta, trail, courses, problem):
 		while course.not_allocated_classes > 0:
 			#Retorna uma lista de slots viaveis para a disciplina
 			feasible_list = get_feasible_list(temporary_walk, course, problem, courses)
+			# Escolhe um slot da lista de slots viaveis dado a probabilidade de cada um
+			slot = choose_slot(feasible_list, course, alpha, beta, temporary_walk, problem, trail, rooms)
 			if True :
-				print(feasible_list)
 				break
 
 
@@ -308,6 +311,37 @@ def get_courses_indexes(courses, courses_conflicts):
 				courses_indexes.append(j.index_in_trail)
 				break
 	return courses_indexes
+
+def choose_slot(feasible_list, course, alpha, beta, walk, problem, trail, rooms):
+	# Calcula a probabilidade de cada slot
+	probabilities = []
+	for i in feasible_list:
+		probabilities.append(calculate_probability(i, course, alpha, beta, walk, problem, len(feasible_list), trail, rooms))
+	# Escolhe um slot aleatório dado a probabilidade de cada um
+	print(probabilities)
+	return feasible_list[0]
+
+def calculate_probability(slot, course, alpha, beta, walk, problem, feasible_list_size, trail, rooms):
+	# Calcula a probabilidade de um slot
+	pheronome = trail.getTrail(course.index_in_trail, slot[0], slot[1], slot[2])
+	penality1 = soft_rule_1(slot, course, problem, rooms)
+	# print(penality1)
+	return penality1
+
+
+
+def soft_rule_1(slot, course, problem, rooms):
+	# – S1-Capacidade de Sala: Para cada disciplina, o número de alunos que está
+	# matriculado na disciplina deve ser menor ou igual ao número de assentos
+	# disponíveis em todas as salas que ocorrem aulas dessa disciplina. Cada aluno
+	# acima da capacidade conta como uma violação.
+	penality = 0
+	room, day, period = slot
+	# Verifica se a capacidade da sala é menor que o número de alunos da disciplina
+	if rooms[room].capacity < course.occupancy:
+		penality += course.occupancy - rooms[room].capacity
+	return penality
+
 
 #Method to link the course with the curricula that it belongs
 def set_owner_curricula(courses, curricula):
@@ -335,18 +369,10 @@ if __name__ == '__main__':
 
 	trail = Trail(problem)
 
-	trail.printTrail()
-
-	trail.setTrail(1, 0, 1, 3)
-
-	for i in courses:
-		print(i.get_conflicts_names())
-		print("\n")
-
 	#
 	# trail.printTrail()
 
-	ant_walk(2, 8, trail, courses, problem)
+	ant_walk(2, 8, trail, courses, problem, rooms)
 
 
 
