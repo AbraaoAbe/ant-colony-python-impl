@@ -77,10 +77,14 @@ trilha também não é atualizado durante a atualização da trilha.
 # – S2-Número Mínimo de Dias de Aula: As aulas de uma disciplina devem ser
 # espalhadas em um número mínimo de dias. Cada dia abaixo do número mínimo
 # de dias conta como uma violação.
+
 # – S3-Aulas Isoladas: Aulas de disciplinas de um mesmo currículo devem ser
 # adjacentes uma à outra. Para cada currículo, uma violação é contada quando há
 # uma aula não adjacente à nenhuma outra aula do mesmo currículo no mesmo
 # dia.
+
+Percorrer os curriculos daquela disciplina e verificar se as disciplinas pertencentes aquele curriculo estão no mesmo dia
+
 # – S4-Estabilidade de Sala: Todas as aulas de uma disciplina devem acontecer
 # na mesma sala. Cada sala distinta usada para aulas dessa disciplina, além da
 # primeira, contam como uma violação.

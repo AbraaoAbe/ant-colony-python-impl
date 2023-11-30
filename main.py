@@ -77,6 +77,8 @@ class Course:
 		self.occupancy = occupancy
 		self.constraint_matrix = []
 		self.curricula = []
+		self.different_days = []
+		self.different_rooms = []
 
 	def init_constraint_matrix(self, days, periods_per_day):
 		# Inicializa a matriz de restrição com todos os valores como True
@@ -119,13 +121,47 @@ class Course:
 			curricula_names.append(i.name)
 		return "Nome: " + self.name + "\n" + "Professor: " + self.teacher + "\n" + "Aulas por semana: " + str(self.classes_per_week) + "\n" + "Dias mínimos: " + str(self.min_days) + "\n" + "Alunos: " + str(self.occupancy) + "\n" + "Currículos: " + str(curricula_names) + "\n"
 
+	#METODOS PARA A RESTRIÇÃO S2 - NÚMERO MÍNIMO DE DIAS DE AULA
+	# Ao ser testado, deve ser utilizado em cópias da disciplina
+	# Ao ser realmente alocado, deve ser utilizado na disciplina original
+	def check_different_days(self, day):
+		if day in self.different_days:
+			return False
+		else:
+			return True
+
+	def add_different_days(self, day):
+		if self.check_different_days(day):
+			self.different_days.append(day)
+
+	def get_penalty_different_days(self):
+		return self.min_days - len(self.different_days)
+
+	def get_penalty_different_rooms(self):
+		return len(self.different_rooms) - 1
+
+	def add_different_rooms(self, room):
+		if room not in self.different_rooms:
+			self.different_rooms.append(room)
+
+	def copy(self):
+		return Course(self.name, self.teacher, self.classes_per_week, self.min_days, self.occupancy, self.index_in_trail)
+
 	# Retorna uma lista com os nomes das disciplinas que possuem conflito com a disciplina atual
-	def get_conflicts_names(self):
+	def get_conflicts_names(self, just_curricula=False):
 		courses_names = []
-		for i in self.curricula:
-			for j in i.courses:
-				if j != self.name:
-					courses_names.append(j)
+		if just_curricula:
+			for i in self.curricula:
+				if i.teacher == False:
+					for j in i.courses:
+						if j != self.name:
+							courses_names.append(j)
+		else:
+			for i in self.curricula:
+				for j in i.courses:
+					if j != self.name:
+						courses_names.append(j)
+
 		return courses_names
 
 
@@ -138,13 +174,14 @@ class Room:
 		return "Nome: " + self.name + "\n" + "Capacidade: " + str(self.capacity) + "\n"
 
 class Curricula_and_Teacher:
-	def __init__(self, name, size, courses):
+	def __init__(self, name, size, courses, teacher=False):
 		self.name = name
 		self.size_courses = size
 		self.courses = courses
+		self.teacher = teacher
 
 	def __str__(self):
-		return "Nome: " + self.name + "\n" + "Tamanho: " + str(self.size_courses) + "\n" + "Disciplinas: " + str(self.courses) + "\n"
+		return "Nome: " + self.name + "\n" + "Tamanho: " + str(self.size_courses) + "\n" + "Disciplinas: " + str(self.courses) + "\n" + "Professor: " + str(self.teacher) + "\n"
 
 def clean_empty_lines(file):
 	# clean empty line
@@ -228,7 +265,7 @@ def check_if_exists(teacher_name, curricula):
 def create_teacher_curricula(courses, curricula):
 	for i in courses:
 		if not check_if_exists(i.teacher, curricula):
-			curricula.append(Curricula_and_Teacher(i.teacher, 1, [i.name]))
+			curricula.append(Curricula_and_Teacher(i.teacher, 1, [i.name], True))
 		else:
 			for j in curricula:
 				if j.name == i.teacher:
@@ -270,6 +307,16 @@ class Trail:
 					return False
 		return True
 
+	# Método para checar se a disciplina está isolada no mesmo dia das outras disciplinas do mesmo currículo
+	def check_isolated_same_day(self, courses_indexes, problem, day):
+		penality = 0
+		for i in courses_indexes:
+			for j in range(problem.rooms):
+				for k in range(problem.periods_per_day):
+					if self.matrix[i][(j * self.timeslots) + (day * self.periods) + k] != 0:
+						break
+			penality += 1
+
 
 
 def ant_walk(alpha, beta, trail, courses, problem, rooms):
@@ -292,9 +339,9 @@ def ant_walk(alpha, beta, trail, courses, problem, rooms):
 #Retorna uma lista de slots viaveis para a disciplina que não violam as restrições fortes
 def get_feasible_list(walk, course, problem, courses):
 	courses_conflicts = course.get_conflicts_names()
-	print(course.name)
+	# print(course.name)
 	courses_conflicts_indexes = get_courses_indexes(courses, courses_conflicts)
-	print(courses_conflicts_indexes)
+	# print(courses_conflicts_indexes)
 	feasible_list = []
 	for i in range(problem.rooms):
 		for j in range(problem.days):
@@ -318,14 +365,22 @@ def choose_slot(feasible_list, course, alpha, beta, walk, problem, trail, rooms)
 	for i in feasible_list:
 		probabilities.append(calculate_probability(i, course, alpha, beta, walk, problem, len(feasible_list), trail, rooms))
 	# Escolhe um slot aleatório dado a probabilidade de cada um
-	print(probabilities)
+	# print(probabilities)
 	return feasible_list[0]
 
 def calculate_probability(slot, course, alpha, beta, walk, problem, feasible_list_size, trail, rooms):
 	# Calcula a probabilidade de um slot
-	pheronome = trail.getTrail(course.index_in_trail, slot[0], slot[1], slot[2])
+	room, day, period = slot
+	pheronome = trail.getTrail(course.index_in_trail, room, day, period)
 	penality1 = soft_rule_1(slot, course, problem, rooms)
 	# print(penality1)
+	penality2 = soft_rule_2(slot, course)
+	# print(penality2)
+	penality3 = soft_rule_3(slot, course)
+	# print(penality3)
+	penality4 = soft_rule_4(slot, course)
+	# print(penality4)
+
 	return penality1
 
 
@@ -340,6 +395,52 @@ def soft_rule_1(slot, course, problem, rooms):
 	# Verifica se a capacidade da sala é menor que o número de alunos da disciplina
 	if rooms[room].capacity < course.occupancy:
 		penality += course.occupancy - rooms[room].capacity
+	return penality
+
+def soft_rule_2(slot, course):
+	# – S2-Número Mínimo de Dias de Aula: As aulas de uma disciplina devem ser
+	# espalhadas em um número mínimo de dias. Cada dia abaixo do número mínimo
+	# de dias conta como uma violação.
+	penality = 0
+	room, day, period = slot
+	# Cria uma copia temporaria da disciplina para não alterar a disciplina original
+	temp_course = course.copy()
+	# Adiciona o dia na lista de dias que a disciplina foi alocada
+	temp_course.add_different_days(day)
+	# Retorna o valor da penalidade da disciplina nesse quesito
+	penality += temp_course.get_penalty_different_days()
+	return penality
+
+def soft_rule_3(slot, course):
+	# – S3-Aulas Isoladas: Aulas de disciplinas de um mesmo currículo devem ser
+	# adjacentes uma à outra. Para cada currículo, uma violação é contada quando há
+	# uma aula não adjacente à nenhuma outra aula do mesmo currículo no mesmo dia.
+	# Percorrer os curriculos daquela disciplina e verificar se as disciplinas pertencentes aquele curriculo estão no mesmo dia
+	penality = 0
+	room, day, period = slot
+	# Cria uma copia temporaria da disciplina para não alterar a disciplina original
+	temp_course = course.copy()
+
+	same_curricula_courses = temp_course.get_conflicts_names(True)
+	same_curricula_courses_indexes = get_courses_indexes(courses, courses_conflicts)
+
+	# Verifica se a disciplina está isolada no mesmo dia das outras disciplinas do mesmo currículo
+	penality += temp_course.check_isolated_same_day(same_curricula_courses_indexes, problem, day)
+
+	return penality
+
+def soft_rule_4(slot, course):
+	# – S4-Estabilidade de Sala: Todas as aulas de uma disciplina devem acontecer
+	# na mesma sala. Cada sala distinta usada para aulas dessa disciplina, além da
+	# primeira, contam como uma violação.
+	penality = 0
+	room, day, period = slot
+	# Cria uma copia temporaria da disciplina para não alterar a disciplina original
+	temp_course = course.copy()
+	# Adiciona a sala na lista de salas que a disciplina foi alocada
+	temp_course.add_different_rooms(room)
+	# Retorna o valor da penalidade da disciplina nesse quesito
+	penality += temp_course.get_penalty_different_rooms()
 	return penality
 
 
