@@ -297,7 +297,17 @@ class Trail:
 			actual_trail = self.getTrail(index_course, room, day, period)
 			self.setTrail(index_course, room, day, period, actual_trail + reward)
 
-	def evaporateTrail(self, rho, tmin, tmax):
+	def evaporateTrail(self, rho, tmin, tmax, problem):
+		for i in range(problem.courses):
+			for j in range(problem.rooms * self.timeslots):
+				actual_trail = self.matrix[i][j]
+				new_trail = actual_trail * (1 - rho)
+				if new_trail < tmin:
+					new_trail = tmin
+				elif new_trail > tmax:
+					new_trail = tmax
+				self.matrix[i][j] = new_trail
+
 
 	def printTrail(self):
 		for i in range(problem.courses):
@@ -369,22 +379,41 @@ def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
 
 	# Inicializa a trilha de feromonio
 	trail = Trail(problem, tmax)
+	same_best = 0
 
+	# Fase de construção das soluções
 	for i in range(n_cycles):
 		solution_ant = []
 		for j in range(n_ants):
 			solution_ant.append(ant_walk(alpha, beta, trail, courses, problem, rooms))
 
+		# Retorna a melhor solução das formigas
 		c_best = get_best_solution(solution_ant, courses, problem, rooms)
 		best_trail, best_list_allocated, best_value = c_best
 
+		# Atualiza a melhor solução global
 		if best_value < g_best:
 			g_best = best_value
 			g_best_trail = best_trail
 			g_best_list_allocated = best_list_allocated
+			same_best = 0
+		else:
+			same_best += 1
+			if same_best == 5:
+				print("Same best multiple times")
+				break
 
+		# Atualiza a trilha de feromonio
 		trail.updateTrail(best_list_allocated, best_value, g_best)
+		# Evapora a trilha de feromonio
+		trail.evaporateTrail(rho, tmin, tmax, problem)
+		print("Melhor solução global:")
+		g_best_trail.printTrailExpressive(problem, courses, rooms, g_best_list_allocated)
+		print("Penalidade:")
+		print(g_best)
 
+# TODO: fazer a função de melhoria "improve_solution" dentro de uma outra "ant_walk"
+# TODO: Que vai ser chamada dentro do "ant_colony_optimization" que faça swap e verifique hard constraints
 def ant_walk(alpha, beta, trail, courses, problem, rooms):
 	not_visited = []
 	for i in courses:
@@ -494,10 +523,10 @@ def get_best_solution(solution_ant, courses, problem, rooms):
 			best_list_allocated = list_allocated
 			best_trail = trail
 
-	print("Melhor solução:")
-	best_trail.printTrailExpressive(problem, courses, rooms, best_list_allocated)
-	print("Penalidade:")
-	print(best)
+	# print("Melhor solução:")
+	# best_trail.printTrailExpressive(problem, courses, rooms, best_list_allocated)
+	# print("Penalidade:")
+	# print(best_value)
 	return best_trail, best_list_allocated, best_value
 
 def soft_rule_1(slot, course, problem, rooms):
@@ -582,9 +611,8 @@ if __name__ == '__main__':
 
 	set_owner_curricula(courses, curricula)
 
-	print_entries(problem, courses, rooms, curricula)
+	# print_entries(problem, courses, rooms, curricula)
 
 	ant_colony_optimization(10, 10, problem, courses, rooms)
-
 
 
