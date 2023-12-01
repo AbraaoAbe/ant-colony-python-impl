@@ -292,7 +292,7 @@ class Trail:
 		print("\n")
 
 	def check_available(self, course, room, day, period):
-		if self.matrix[course][(room * self.timeslots) + (day * self.periods) + period] == 0:
+		if self.getTrail(course, room, day, period) == 0:
 			return True
 		else:
 			return False
@@ -303,25 +303,45 @@ class Trail:
 		allrooms = problem.rooms
 		for i in range(allrooms):
 			for j in courses_indexes:
-				if self.matrix[j][(i * self.timeslots) + (day * self.periods) + period] == 1:
+				if self.getTrail(j, i, day, period) != 0:
 					return False
 		return True
 
 	# Método para checar se a disciplina está isolada no mesmo dia das outras disciplinas do mesmo currículo
-	def check_isolated_same_day(self, courses_indexes, problem, day):
+	def check_isolated(self, courses_indexes, problem, slot):
 		penality = 0
-		for i in courses_indexes:
-			for j in range(problem.rooms):
-				for k in range(problem.periods_per_day):
-					if self.matrix[i][(j * self.timeslots) + (day * self.periods) + k] != 0:
-						break
-			penality += 1
+		room, day, period = slot
+		adjacent1, adjacent2 = period - 1, period + 1
 
+		count_isolated = 0
+		# Verifica se a disciplina está isolada das outras disciplinas do mesmo currículo
+		if period == 0:
+			for i in courses_indexes:
+				if self.getTrail(i, room, day, adjacent2) == 0:
+					count_isolated += 1
+		elif period == problem.periods_per_day - 1:
+			for i in courses_indexes:
+				if self.getTrail(i, room, day, adjacent1) == 0:
+					count_isolated += 1
+		else:
+			for i in courses_indexes:
+				if self.getTrail(i, room, day, adjacent1) == 0 or self.getTrail(i, room, day, adjacent2) == 0:
+					count_isolated += 1
+
+		# Retorna o booleano se a disciplina está isolada ou não
+		if count_isolated == len(courses_indexes):
+			return True
+		else:
+			return False
+
+	def evaluate_solution(self):
+		soft_rule_3()
 
 
 def ant_walk(alpha, beta, trail, courses, problem, rooms):
 	not_visited = courses.copy()
 	temporary_walk = Trail(problem)
+	list_allocated = []
 
 	for i in range(len(not_visited)):
 		#seleciona uma disciplina aleatória
@@ -332,9 +352,17 @@ def ant_walk(alpha, beta, trail, courses, problem, rooms):
 			feasible_list = get_feasible_list(temporary_walk, course, problem, courses)
 			# Escolhe um slot da lista de slots viaveis dado a probabilidade de cada um
 			slot = choose_slot(feasible_list, course, alpha, beta, temporary_walk, problem, trail, rooms)
-			if True :
-				break
+			# Aloca a disciplina no slot escolhido
+			room, day, period = slot
+			temporary_walk.setTrail(course.index_in_trail, room, day, period)
+			# Lista para função de avaliação de qualidade
+			list_allocated.append([course.index_in_trail, room, day, period])
+			# Decrementa o número de aulas não alocadas da disciplina
+			course.not_allocated_classes -= 1
 
+			print("Disciplina: " + course.name + " Sala: " + str(room) + " Dia: " + str(day) + " Período: " + str(period))
+
+	return temporary_walk, list_allocated
 
 #Retorna uma lista de slots viaveis para a disciplina que não violam as restrições fortes
 def get_feasible_list(walk, course, problem, courses):
@@ -346,7 +374,9 @@ def get_feasible_list(walk, course, problem, courses):
 	for i in range(problem.rooms):
 		for j in range(problem.days):
 			for k in range(problem.periods_per_day):
-				if walk.check_available(course.index_in_trail, i, j, k) and walk.check_conflicts_same_period(courses_conflicts_indexes, problem, j, k) and course.check_constraint_matrix(j, k):
+				if walk.check_available(course.index_in_trail, i, j, k) \
+						and walk.check_conflicts_same_period(courses_conflicts_indexes, problem, j, k) \
+						and course.check_constraint_matrix(j, k):
 					feasible_list.append([i, j, k])
 	return feasible_list
 
@@ -363,12 +393,20 @@ def choose_slot(feasible_list, course, alpha, beta, walk, problem, trail, rooms)
 	# Calcula a probabilidade de cada slot
 	probabilities = []
 	for i in feasible_list:
-		probabilities.append(calculate_probability(i, course, alpha, beta, walk, problem, len(feasible_list), trail, rooms))
-	# Escolhe um slot aleatório dado a probabilidade de cada um
-	# print(probabilities)
-	return feasible_list[0]
+		probabilities.append(calculate_probability(i, course, alpha, beta, walk, problem, trail, rooms))
 
-def calculate_probability(slot, course, alpha, beta, walk, problem, feasible_list_size, trail, rooms):
+	sumProbabilities = sum(probabilities)
+
+	# Normaliza as probabilidades
+	probabilities_normalized = []
+	for i in probabilities:
+		probabilities_normalized.append(i / sumProbabilities)
+
+	# Escolhe um slot aleatório dado as probabilidades
+	slot = random.choices(feasible_list, probabilities_normalized)[0]
+	return slot
+
+def calculate_probability(slot, course, alpha, beta, walk, problem, trail, rooms):
 	# Calcula a probabilidade de um slot
 	room, day, period = slot
 	pheronome = trail.getTrail(course.index_in_trail, room, day, period)
@@ -376,14 +414,22 @@ def calculate_probability(slot, course, alpha, beta, walk, problem, feasible_lis
 	# print(penality1)
 	penality2 = soft_rule_2(slot, course)
 	# print(penality2)
-	penality3 = soft_rule_3(slot, course)
+	penality3 = soft_rule_3(slot, course, walk, problem)
 	# print(penality3)
 	penality4 = soft_rule_4(slot, course)
 	# print(penality4)
+	value = (pheronome ** alpha) + ((1 / (penality1 + (penality2*5) + (penality3*2) + penality4)) ** beta)
+	return value
 
-	return penality1
-
-
+def evaluate_solution(list_allocated, courses, problem, rooms, walk):
+	penality = 0
+	for i in list_allocated:
+		index_course, room, day, period = i
+		penality += soft_rule_1([room, day, period], courses[index_course], problem, rooms)
+		penality += (soft_rule_2([room, day, period], courses[index_course]) * 5)
+		penality += (soft_rule_3([room, day, period], courses[index_course], walk, problem) * 2)
+		penality += soft_rule_4([room, day, period], courses[index_course])
+	return penality
 
 def soft_rule_1(slot, course, problem, rooms):
 	# – S1-Capacidade de Sala: Para cada disciplina, o número de alunos que está
@@ -411,7 +457,7 @@ def soft_rule_2(slot, course):
 	penality += temp_course.get_penalty_different_days()
 	return penality
 
-def soft_rule_3(slot, course):
+def soft_rule_3(slot, course, walk, problem):
 	# – S3-Aulas Isoladas: Aulas de disciplinas de um mesmo currículo devem ser
 	# adjacentes uma à outra. Para cada currículo, uma violação é contada quando há
 	# uma aula não adjacente à nenhuma outra aula do mesmo currículo no mesmo dia.
@@ -422,10 +468,11 @@ def soft_rule_3(slot, course):
 	temp_course = course.copy()
 
 	same_curricula_courses = temp_course.get_conflicts_names(True)
-	same_curricula_courses_indexes = get_courses_indexes(courses, courses_conflicts)
+	same_curricula_courses_indexes = get_courses_indexes(courses, same_curricula_courses)
 
 	# Verifica se a disciplina está isolada no mesmo dia das outras disciplinas do mesmo currículo
-	penality += temp_course.check_isolated_same_day(same_curricula_courses_indexes, problem, day)
+	if walk.check_isolated(same_curricula_courses_indexes, problem, slot):
+		penality += 1
 
 	return penality
 
@@ -473,7 +520,9 @@ if __name__ == '__main__':
 	#
 	# trail.printTrail()
 
-	ant_walk(2, 8, trail, courses, problem, rooms)
+	temp_trail, list_allocated = ant_walk(2, 8, trail, courses, problem, rooms)
+	temp_trail.printTrail()
 
-
+	value = evaluate_solution(list_allocated, courses, problem, rooms, temp_trail)
+	print(value)
 
