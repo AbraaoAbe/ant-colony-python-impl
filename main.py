@@ -334,12 +334,30 @@ class Trail:
 		else:
 			return False
 
-	def evaluate_solution(self):
-		soft_rule_3()
 
 
+def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
+	alpha = 2
+	beta = 5
+	rho = 0.05
+	tmin = 0.01
+	tmax = 10
+	g_best = 99999999999
+
+	# Inicializa a trilha de feromonio
+	trail = Trail(problem)
+
+	for i in range(n_cycles):
+		solution_ant = []
+		for j in range(n_ants):
+			solution_ant.append(ant_walk(alpha, beta, trail, courses, problem, rooms))
+
+		c_best = get_best_solution(solution_ant, courses, problem, rooms)
 def ant_walk(alpha, beta, trail, courses, problem, rooms):
-	not_visited = courses.copy()
+	not_visited = []
+	for i in courses:
+		not_visited.append(i.copy())
+
 	temporary_walk = Trail(problem)
 	list_allocated = []
 
@@ -431,6 +449,24 @@ def evaluate_solution(list_allocated, courses, problem, rooms, walk):
 		penality += soft_rule_4([room, day, period], courses[index_course])
 	return penality
 
+def get_best_solution(solution_ant, courses, problem, rooms):
+	best = 99999999999
+	best_solution = []
+	for i in solution_ant:
+		trail, list_allocated = i
+		print("Solução:")
+		trail.printTrail()
+		print("Penalidade:")
+		value = evaluate_solution(list_allocated, courses, problem, rooms, trail)
+		print(value)
+		print("\n")
+
+		if value < best:
+			best = value
+			best_solution = i
+
+	return best_solution
+
 def soft_rule_1(slot, course, problem, rooms):
 	# – S1-Capacidade de Sala: Para cada disciplina, o número de alunos que está
 	# matriculado na disciplina deve ser menor ou igual ao número de assentos
@@ -515,14 +551,7 @@ if __name__ == '__main__':
 
 	print_entries(problem, courses, rooms, curricula)
 
-	trail = Trail(problem)
+	ant_colony_optimization(10, 10, problem, courses, rooms)
 
-	#
-	# trail.printTrail()
 
-	temp_trail, list_allocated = ant_walk(2, 8, trail, courses, problem, rooms)
-	temp_trail.printTrail()
-
-	value = evaluate_solution(list_allocated, courses, problem, rooms, temp_trail)
-	print(value)
 
