@@ -275,10 +275,10 @@ def create_teacher_curricula(courses, curricula):
 
 
 class Trail:
-	def __init__(self, problem):
+	def __init__(self, problem, value=0):
 		self.timeslots = problem.days * problem.periods_per_day
 		self.periods = problem.periods_per_day
-		self.matrix = [[0 for i in range(problem.rooms * self.timeslots)] for j in range(problem.courses)]
+		self.matrix = [[value for i in range(problem.rooms * self.timeslots)] for j in range(problem.courses)]
 
 	def setTrail(self, course, room, day, period, value=1):
 		self.matrix[course][(room * self.timeslots) + (day * self.periods) + period] = value
@@ -286,16 +286,37 @@ class Trail:
 	def getTrail(self, course, room, day, period):
 		return self.matrix[course][(room * self.timeslots) + (day * self.periods) + period]
 
+	def updateTrail(self, best_list_allocated, best_value, global_value):
+		reward = 1 / (1 + global_value - best_value)
+		# Manter os updates positivos
+		if reward < 0:
+			reward = reward * -1
+
+		for i in best_list_allocated:
+			index_course, room, day, period = i
+			actual_trail = self.getTrail(index_course, room, day, period)
+			self.setTrail(index_course, room, day, period, actual_trail + reward)
+
+	def evaporateTrail(self, rho, tmin, tmax):
+
 	def printTrail(self):
 		for i in range(problem.courses):
 			print(self.matrix[i])
 		print("\n")
 
-	def check_available(self, course, room, day, period):
-		if self.getTrail(course, room, day, period) == 0:
-			return True
-		else:
-			return False
+	def printTrailExpressive(self, problem, courses, rooms, list_allocated):
+		for i in list_allocated:
+			index_course, room, day, period = i
+			print("Disciplina: " + courses[index_course].name + " Sala: " + rooms[room].name + " Dia: " + str(day) + " Período: " + str(period))
+		print("\n")
+
+
+	def check_available(self, course, room, day, period, problem):
+		# Verifica se o slot está disponível para todas as disciplinas
+		for i in range(problem.courses):
+			if self.getTrail(i, room, day, period) != 0:
+				return False
+		return True
 
 	# Método para verificar as disciplinas que possuem conflito de período com a disciplina atual
 	# Ela checa o mesmo horário em todas as salas no mesmo período
@@ -343,9 +364,11 @@ def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
 	tmin = 0.01
 	tmax = 10
 	g_best = 99999999999
+	g_best_trail = []
+	g_best_list_allocated = []
 
 	# Inicializa a trilha de feromonio
-	trail = Trail(problem)
+	trail = Trail(problem, tmax)
 
 	for i in range(n_cycles):
 		solution_ant = []
@@ -353,6 +376,15 @@ def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
 			solution_ant.append(ant_walk(alpha, beta, trail, courses, problem, rooms))
 
 		c_best = get_best_solution(solution_ant, courses, problem, rooms)
+		best_trail, best_list_allocated, best_value = c_best
+
+		if best_value < g_best:
+			g_best = best_value
+			g_best_trail = best_trail
+			g_best_list_allocated = best_list_allocated
+
+		trail.updateTrail(best_list_allocated, best_value, g_best)
+
 def ant_walk(alpha, beta, trail, courses, problem, rooms):
 	not_visited = []
 	for i in courses:
@@ -378,7 +410,7 @@ def ant_walk(alpha, beta, trail, courses, problem, rooms):
 			# Decrementa o número de aulas não alocadas da disciplina
 			course.not_allocated_classes -= 1
 
-			print("Disciplina: " + course.name + " Sala: " + str(room) + " Dia: " + str(day) + " Período: " + str(period))
+			# print("Disciplina: " + course.name + " Sala: " + str(room) + " Dia: " + str(day) + " Período: " + str(period))
 
 	return temporary_walk, list_allocated
 
@@ -392,7 +424,7 @@ def get_feasible_list(walk, course, problem, courses):
 	for i in range(problem.rooms):
 		for j in range(problem.days):
 			for k in range(problem.periods_per_day):
-				if walk.check_available(course.index_in_trail, i, j, k) \
+				if walk.check_available(course.index_in_trail, i, j, k, problem) \
 						and walk.check_conflicts_same_period(courses_conflicts_indexes, problem, j, k) \
 						and course.check_constraint_matrix(j, k):
 					feasible_list.append([i, j, k])
@@ -450,22 +482,23 @@ def evaluate_solution(list_allocated, courses, problem, rooms, walk):
 	return penality
 
 def get_best_solution(solution_ant, courses, problem, rooms):
-	best = 99999999999
+	best_value = 99999999999
 	best_solution = []
+	best_trail = []
 	for i in solution_ant:
 		trail, list_allocated = i
-		print("Solução:")
-		trail.printTrail()
-		print("Penalidade:")
 		value = evaluate_solution(list_allocated, courses, problem, rooms, trail)
-		print(value)
-		print("\n")
 
-		if value < best:
-			best = value
-			best_solution = i
+		if value < best_value:
+			best_value = value
+			best_list_allocated = list_allocated
+			best_trail = trail
 
-	return best_solution
+	print("Melhor solução:")
+	best_trail.printTrailExpressive(problem, courses, rooms, best_list_allocated)
+	print("Penalidade:")
+	print(best)
+	return best_trail, best_list_allocated, best_value
 
 def soft_rule_1(slot, course, problem, rooms):
 	# – S1-Capacidade de Sala: Para cada disciplina, o número de alunos que está
