@@ -77,6 +77,7 @@ class Course:
 		self.occupancy = occupancy
 		self.constraint_matrix = []
 		self.curricula = []
+		#TODO: atualizar na lista courses original essas duas listas após alocar
 		self.different_days = []
 		self.different_rooms = []
 
@@ -388,6 +389,7 @@ def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
 			solution_ant.append(ant_walk(alpha, beta, trail, courses, problem, rooms))
 
 		# Retorna a melhor solução das formigas
+		#TODO: Ao retornar a melhor solução, deve-se vir modificado as disciplinas originais
 		c_best = get_best_solution(solution_ant, courses, problem, rooms)
 		best_trail, best_list_allocated, best_value = c_best
 
@@ -439,17 +441,15 @@ def ant_walk(alpha, beta, trail, courses, problem, rooms):
 			# Decrementa o número de aulas não alocadas da disciplina
 			course.not_allocated_classes -= 1
 
-			# print("Disciplina: " + course.name + " Sala: " + str(room) + " Dia: " + str(day) + " Período: " + str(period))
-
 	return temporary_walk, list_allocated
 
 #Retorna uma lista de slots viaveis para a disciplina que não violam as restrições fortes
 def get_feasible_list(walk, course, problem, courses):
+	# Dado uma disciplina, retorna uma lista de disciplinas conflitantes
 	courses_conflicts = course.get_conflicts_names()
-	# print(course.name)
 	courses_conflicts_indexes = get_courses_indexes(courses, courses_conflicts)
-	# print(courses_conflicts_indexes)
 	feasible_list = []
+	# Percorre todas as salas, dias e períodos
 	for i in range(problem.rooms):
 		for j in range(problem.days):
 			for k in range(problem.periods_per_day):
@@ -510,6 +510,7 @@ def evaluate_solution(list_allocated, courses, problem, rooms, walk):
 		penality += soft_rule_4([room, day, period], courses[index_course])
 	return penality
 
+#TODO: A melhor solução tem que escrever diretamente em courses, pois é a solução final
 def get_best_solution(solution_ant, courses, problem, rooms):
 	best_value = 99999999999
 	best_solution = []
@@ -606,12 +607,10 @@ if __name__ == '__main__':
 	# file = open("Instancias/comp01.ctt", "r")
 
 	problem, courses, rooms, curricula = read_file(file)
-
+	# Transforma o nome do professor em um currículo
 	create_teacher_curricula(courses, curricula)
-
+	# Atribui o curriculo de cada disciplina para a disciplina
 	set_owner_curricula(courses, curricula)
-
-	# print_entries(problem, courses, rooms, curricula)
 
 	ant_colony_optimization(10, 10, problem, courses, rooms)
 
