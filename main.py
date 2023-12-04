@@ -367,6 +367,14 @@ class Trail:
 			return False
 
 
+def update_course(courses_original, courses_updated):
+	for i in courses_updated:
+		for j in courses_original:
+			if i.name == j.name:
+				j.not_allocated_classes = i.not_allocated_classes
+				j.different_days = i.different_days
+				j.different_rooms = i.different_rooms
+				break
 
 def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
 	alpha = 2
@@ -391,13 +399,14 @@ def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
 		# Retorna a melhor solução das formigas
 		#TODO: Ao retornar a melhor solução, deve-se vir modificado as disciplinas originais
 		c_best = get_best_solution(solution_ant, courses, problem, rooms)
-		best_trail, best_list_allocated, best_value = c_best
+		best_trail, best_list_allocated, best_value, best_solution_courses = c_best
 
 		# Atualiza a melhor solução global
 		if best_value < g_best:
 			g_best = best_value
 			g_best_trail = best_trail
 			g_best_list_allocated = best_list_allocated
+			update_course(courses, best_solution_courses)
 			same_best = 0
 		else:
 			same_best += 1
@@ -502,33 +511,41 @@ def calculate_probability(slot, course, alpha, beta, walk, problem, trail, rooms
 
 def evaluate_solution(list_allocated, courses, problem, rooms, walk):
 	penality = 0
+	aux_courses = []
+	for i in courses:
+		aux_courses.append(i.copy())
+
 	for i in list_allocated:
 		index_course, room, day, period = i
-		penality += soft_rule_1([room, day, period], courses[index_course], problem, rooms)
-		penality += (soft_rule_2([room, day, period], courses[index_course]) * 5)
-		penality += (soft_rule_3([room, day, period], courses[index_course], walk, problem) * 2)
-		penality += soft_rule_4([room, day, period], courses[index_course])
-	return penality
+		penality += soft_rule_1([room, day, period], aux_courses[index_course], problem, rooms)
+		penality += (soft_rule_2([room, day, period], aux_courses[index_course]) * 5)
+		penality += (soft_rule_3([room, day, period], aux_courses[index_course], walk, problem) * 2)
+		penality += soft_rule_4([room, day, period], aux_courses[index_course])
+	return penality, aux_courses
 
 #TODO: A melhor solução tem que escrever diretamente em courses, pois é a solução final
 def get_best_solution(solution_ant, courses, problem, rooms):
 	best_value = 99999999999
 	best_solution = []
 	best_trail = []
+	best_solution_courses = []
+
+
 	for i in solution_ant:
 		trail, list_allocated = i
-		value = evaluate_solution(list_allocated, courses, problem, rooms, trail)
+		value, updated_courses = evaluate_solution(list_allocated, courses, problem, rooms, trail)
 
 		if value < best_value:
 			best_value = value
 			best_list_allocated = list_allocated
 			best_trail = trail
+			best_solution_courses = updated_courses
 
 	# print("Melhor solução:")
 	# best_trail.printTrailExpressive(problem, courses, rooms, best_list_allocated)
 	# print("Penalidade:")
 	# print(best_value)
-	return best_trail, best_list_allocated, best_value
+	return best_trail, best_list_allocated, best_value, best_solution_courses
 
 def soft_rule_1(slot, course, problem, rooms):
 	# – S1-Capacidade de Sala: Para cada disciplina, o número de alunos que está
@@ -548,12 +565,10 @@ def soft_rule_2(slot, course):
 	# de dias conta como uma violação.
 	penality = 0
 	room, day, period = slot
-	# Cria uma copia temporaria da disciplina para não alterar a disciplina original
-	temp_course = course.copy()
 	# Adiciona o dia na lista de dias que a disciplina foi alocada
-	temp_course.add_different_days(day)
+	course.add_different_days(day)
 	# Retorna o valor da penalidade da disciplina nesse quesito
-	penality += temp_course.get_penalty_different_days()
+	penality += course.get_penalty_different_days()
 	return penality
 
 def soft_rule_3(slot, course, walk, problem):
@@ -563,10 +578,8 @@ def soft_rule_3(slot, course, walk, problem):
 	# Percorrer os curriculos daquela disciplina e verificar se as disciplinas pertencentes aquele curriculo estão no mesmo dia
 	penality = 0
 	room, day, period = slot
-	# Cria uma copia temporaria da disciplina para não alterar a disciplina original
-	temp_course = course.copy()
 
-	same_curricula_courses = temp_course.get_conflicts_names(True)
+	same_curricula_courses = course.get_conflicts_names(True)
 	same_curricula_courses_indexes = get_courses_indexes(courses, same_curricula_courses)
 
 	# Verifica se a disciplina está isolada no mesmo dia das outras disciplinas do mesmo currículo
@@ -581,12 +594,10 @@ def soft_rule_4(slot, course):
 	# primeira, contam como uma violação.
 	penality = 0
 	room, day, period = slot
-	# Cria uma copia temporaria da disciplina para não alterar a disciplina original
-	temp_course = course.copy()
 	# Adiciona a sala na lista de salas que a disciplina foi alocada
-	temp_course.add_different_rooms(room)
+	course.add_different_rooms(room)
 	# Retorna o valor da penalidade da disciplina nesse quesito
-	penality += temp_course.get_penalty_different_rooms()
+	penality += course.get_penalty_different_rooms()
 	return penality
 
 
@@ -612,6 +623,6 @@ if __name__ == '__main__':
 	# Atribui o curriculo de cada disciplina para a disciplina
 	set_owner_curricula(courses, curricula)
 
-	ant_colony_optimization(10, 10, problem, courses, rooms)
+	ant_colony_optimization(10, 5, problem, courses, rooms)
 
 
