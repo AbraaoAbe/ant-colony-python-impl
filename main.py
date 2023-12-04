@@ -1,5 +1,6 @@
 import random as random
 import time as time
+import matplotlib.pyplot as plt
 
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
@@ -225,6 +226,29 @@ class Curricula_and_Teacher:
 	def __str__(self):
 		return "Nome: " + self.name + "\n" + "Tamanho: " + str(self.size_courses) + "\n" + "Disciplinas: " + str(self.courses) + "\n" + "Professor: " + str(self.teacher) + "\n"
 
+data_plot = []
+def plot_algorithm_progress(data):
+	# Descompacta a lista de tuplas em listas separadas para x e y
+	x_values, y_values = zip(*data)
+	print(data)
+
+	# Plotagem do desenvolvimento do algoritmo ao longo das iterações
+	plt.plot(x_values, y_values, label="Desenvolvimento do Algoritmo")
+
+	# Adiciona uma linha horizontal no valor do ótimo
+	optimal_value = min(y_values)  # Substitua isso pelo valor ótimo real
+	plt.axhline(y=optimal_value, color='r', linestyle='--', label="Ótimo")
+
+	# Configurações adicionais
+	plt.xlabel("Iterações")
+	plt.ylabel("Valor da Função Objetivo")
+	plt.title("Desenvolvimento do Algoritmo")
+	plt.legend()
+	plt.grid(True)
+
+	# Exibe o gráfico
+	plt.show()
+
 def clean_empty_lines(file):
 	# clean empty line
 	file.readline()
@@ -329,7 +353,7 @@ class Trail:
 		return self.matrix[course][(room * self.timeslots) + (day * self.periods) + period]
 
 	def updateTrail(self, best_list_allocated, best_value, global_value):
-		div = 1.0 / (1.0 + global_value - best_value)
+		div = (1.0 + global_value - best_value)
 		if div == 0:
 			div = 0.01
 		reward = 1.0 / div
@@ -460,37 +484,28 @@ def update_course(courses_original, courses_updated):
 				break
 
 def ant_colony_optimization(seconds, n_ants, problem, courses, rooms):
-	alpha = 2
-	beta = 5
-	rho = 0.05
-	tmin = 0.01
-	tmax = 10
+	alpha, beta, rho = 5, 4, 0.05
+	tmin, tmax = 0.01, 10
 	g_best = 99999999999
 	g_best_trail_walk = []
 	g_best_list_allocated = []
-
 	# Inicializa a trilha de feromonio
 	trail_feromone = Trail(problem, tmax)
 	same_best_generation = 0
 	same_best_improvement = 0
-
+	iter = 0
 	# Fazer o looping pelo tempo de execução
 	start_time = time.time()
-
 	solution_ant = []
 
 	# Fase de construção das soluções
 	while time.time() - start_time < seconds:
 		for j in range(n_ants):
 			solution_ant.append(ant_walk_generate(alpha, beta, trail_feromone, courses, problem, rooms))
-
 		# Retorna a melhor solução das formigas
 		c_best = get_best_solution(solution_ant, courses, problem, rooms)
 		best_trail_walk, best_list_allocated, best_value, best_solution_courses = c_best
-
-		best_list_extrated = best_trail_walk.extract_slot_list(problem)
-		best_list_allocoted = sorted(best_list_extrated, key=lambda x: x[0])
-		# Faça um while se em 10 tentativas não houver melhoria, pare
+		#Se em 10 tentativas não houver melhoria na melhor solução, para o algoritmo
 		while True:
 			# Fase de melhoria das soluções
 			improved_best_value, improved_best_list_allocated, improved_best_trail_walk = \
@@ -501,25 +516,18 @@ def ant_colony_optimization(seconds, n_ants, problem, courses, rooms):
 				g_best_trail_walk = improved_best_trail_walk.copy()
 				g_best_list_allocated = improved_best_list_allocated.copy()
 				same_best_improvement = 0
-				print("Nova Melhor solução global encontrada:")
-				print(g_best)
-				extract_slot_list = g_best_trail_walk.extract_slot_list(problem)
-				print (extract_slot_list == g_best_list_allocated)
 			else:
 				same_best_improvement += 1
 				if same_best_improvement == 10:
 					print("Não houve melhoria em 10 tentativas")
 					same_best_improvement = 0
 					break
-
+			data_plot.append((iter, g_best))
+			iter += 1
 		# Atualiza a trilha de feromonio
 		trail_feromone.updateTrail(best_list_allocated, best_value, g_best)
 		# Evapora a trilha de feromonio
 		trail_feromone.evaporateTrail(rho, tmin, tmax, problem)
-		# print("Melhor solução global:")
-		# g_best_trail_walk.printTrailExpressive(problem, courses, rooms, g_best_list_allocated)
-		print("Melhor solução global:")
-		print(g_best)
 
 def ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses, problem):
 	aux_best_list_alocated = best_list_allocated.copy()
@@ -751,7 +759,6 @@ def evaluate_solution(list_allocated, courses, problem, rooms, walk):
 		penality += soft_rule_4([room, day, period], aux_courses[index_course])
 	return penality, aux_courses
 
-#TODO: A melhor solução tem que escrever diretamente em courses, pois é a solução final
 def get_best_solution(solution_ant, courses, problem, rooms):
 	best_value = 99999999999
 	best_solution = []
@@ -843,7 +850,9 @@ def set_owner_curricula(courses, curricula):
 if __name__ == '__main__':
 	# read file
 	# file = open("Instancias/toy.ctt", "r")
-	file = open("Instancias/comp01.ctt", "r")
+	# file = open("Instancias/comp01.ctt", "r")
+	file = open("Instancias/comp03.ctt", "r")
+	# file = open("Instancias/comp06.ctt", "r")
 
 	problem, courses, rooms, curricula = read_file(file)
 	# Transforma o nome do professor em um currículo
@@ -851,7 +860,9 @@ if __name__ == '__main__':
 	# Atribui o curriculo de cada disciplina para a disciplina
 	set_owner_curricula(courses, curricula)
 
-	thiry_minutes = 60 * 30
-	ant_colony_optimization(thiry_minutes, 5, problem, courses, rooms)
+	ant_colony_optimization(yy_benchmark, 5, problem, courses, rooms)
+	# ant_colony_optimization(10, 5, problem, courses, rooms)
+
+	plot_algorithm_progress(data_plot)
 
 
