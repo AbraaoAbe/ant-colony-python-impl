@@ -494,16 +494,19 @@ def ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses,
 	random_day = random.randrange(problem.days)
 	random_period = random.randrange(problem.periods_per_day)
 	# Verifica se o slot sorteado está ou não ocupado
+	value = best_value
 	if aux_best_trail_walk.check_available(al_course, random_room, random_day, random_period, problem):
 		# Avalia o efeito do move e executa caso seja melhor que a solução atual
 		# Se for melhor, atualiza a melhor solução
 		course = courses[al_course]
-		move(aux_best_trail_walk, course, problem, courses, random_room, random_day, random_period)
-		# Modifica o allocated para o novo slot
-		aux_best_list_alocated.remove(allocated)
-		aux_best_list_alocated.append([al_course, random_room, random_day, random_period])
-		# Avalia a nova solução
-		value, updated_courses = evaluate_solution(aux_best_list_alocated, courses, problem, rooms, aux_best_trail_walk)
+		validate = move(aux_best_trail_walk, course, problem, courses, random_room, random_day, random_period)
+		if validate:
+			# Modifica o allocated para o novo slot
+			aux_best_list_alocated.remove(allocated)
+			aux_best_list_alocated.append([al_course, random_room, random_day, random_period])
+			# Avalia a nova solução
+			value, updated_courses = evaluate_solution(aux_best_list_alocated, courses, problem, rooms, aux_best_trail_walk)
+
 	#Faz um swap
 	else:
 		course_a = courses[al_course]
@@ -520,12 +523,13 @@ def ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses,
 		slot_a = [al_room, al_day, al_period]
 		slot_b = [random_room, random_day, random_period]
 		# Faz o swap
-		swap(aux_best_trail_walk, course_a, course_b, problem, courses, slot_a, slot_b)
-		# Modifica o allocated para o novo slot
-		aux_best_list_alocated.remove(allocated)
-		aux_best_list_alocated.append([al_course, room, day, period])
-		# Avalia a nova solução
-		value, updated_courses = evaluate_solution(aux_best_list_alocated, courses, problem, rooms, aux_best_trail_walk)
+		validate = swap(aux_best_trail_walk, course_a, course_b, problem, courses, slot_a, slot_b)
+		if validate:
+			# Modifica o allocated para o novo slot
+			aux_best_list_alocated.remove(allocated)
+			aux_best_list_alocated.append([al_course, room, day, period])
+			# Avalia a nova solução
+			value, updated_courses = evaluate_solution(aux_best_list_alocated, courses, problem, rooms, aux_best_trail_walk)
 
 	# Se a nova solução for melhor, atualiza a melhor solução
 	if value < best_value:
@@ -549,7 +553,9 @@ def move(best_trail, course, problem, courses, room, day, period):
 		course.add_different_rooms(room)
 		# Limpa a alocação antiga
 		best_trail = clear_allocated(course, room, day, period, best_trail)
-
+		return True
+	else:
+		return False
 
 def swap(best_trail, course_a, course_b, problem, courses, slot_a, slot_b):
 	# Dado uma disciplina, retorna uma lista de disciplinas conflitantes
@@ -560,6 +566,10 @@ def swap(best_trail, course_a, course_b, problem, courses, slot_a, slot_b):
 
 	room_a, day_a, period_a = slot_a
 	room_b, day_b, period_b = slot_b
+
+	#Limpa as alocações antigas
+	best_trail = clear_allocated(course_a, room_a, day_a, period_a, best_trail)
+	best_trail = clear_allocated(course_b, room_b, day_b, period_b, best_trail)
 
 	verif_1 = best_trail.check_available(course_a.index_in_trail, room_b, day_b, period_b, problem)
 	verif_2 = best_trail.check_available(course_b.index_in_trail, room_a, day_a, period_a, problem)
@@ -576,11 +586,9 @@ def swap(best_trail, course_a, course_b, problem, courses, slot_a, slot_b):
 		# Adiciona a sala na lista de salas que a disciplina foi alocada
 		course_a.add_different_rooms(room_b)
 		course_b.add_different_rooms(room_a)
-		# Limpa a alocação antiga
-		best_trail = clear_allocated(course_a, room_a, day_a, period_a, best_trail)
-		best_trail = clear_allocated(course_b, room_b, day_b, period_b, best_trail)
-
-
+		return True
+	else:
+		return False
 
 
 def clear_allocated(course, room, day, period, best_trail):
