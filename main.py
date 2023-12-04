@@ -80,7 +80,8 @@ class Course:
 		#TODO: atualizar na lista courses original essas duas listas após alocar
 		self.different_days = []
 		self.different_rooms = []
-
+		self.all_days = []
+		self.all_rooms = []
 	def init_constraint_matrix(self, days, periods_per_day):
 		# Inicializa a matriz de restrição com todos os valores como True
 		for _ in range(periods_per_day):
@@ -134,9 +135,16 @@ class Course:
 	def add_different_days(self, day):
 		if self.check_different_days(day):
 			self.different_days.append(day)
+		#Adiciona na lista com todos os dias
+		self.all_days.append(day)
 
 	def get_penalty_different_days(self):
 		return self.min_days - len(self.different_days)
+
+	def remove_different_days(self, day):
+		self.different_days.remove(day)
+		#Remove somente 1 dia da lista com todos os dias
+		self.all_days.remove(day)
 
 	def get_penalty_different_rooms(self):
 		return len(self.different_rooms) - 1
@@ -144,6 +152,36 @@ class Course:
 	def add_different_rooms(self, room):
 		if room not in self.different_rooms:
 			self.different_rooms.append(room)
+		#Adiciona na lista com todas as salas
+		self.all_rooms.append(room)
+
+	def remove_different_rooms(self, room):
+		self.different_rooms.remove(room)
+		#Remove somente 1 sala da lista com todas as salas
+		self.all_rooms.remove(room)
+
+	# Método que checa a unicidade do dia na alocação
+	def check_unique_day(self, day):
+		cout = 0
+		for i in self.all_days:
+			if i == day:
+				cout += 1
+
+		if cout == 1:
+			return True
+		else:
+			return False
+
+	def check_unique_room(self, room):
+		cout = 0
+		for i in self.all_rooms:
+			if i == room:
+				cout += 1
+
+		if cout == 1:
+			return True
+		else:
+			return False
 
 	def copy(self):
 		return Course(self.name, self.teacher, self.classes_per_week, self.min_days, self.occupancy, self.index_in_trail)
@@ -325,7 +363,9 @@ class Trail:
 	def check_available(self, course, room, day, period, problem):
 		# Verifica se o slot está disponível para todas as disciplinas
 		for i in range(problem.courses):
-			if self.getTrail(i, room, day, period) != 0:
+			if i == course:
+				continue
+			elif self.getTrail(i, room, day, period) != 0:
 				return False
 		return True
 
@@ -366,6 +406,13 @@ class Trail:
 		else:
 			return False
 
+	def copy(self):
+		new_trail = Trail(problem)
+		for i in range(problem.courses):
+			for j in range(problem.rooms * self.timeslots):
+				new_trail.matrix[i][j] = self.matrix[i][j]
+		return new_trail
+
 
 def update_course(courses_original, courses_updated):
 	for i in courses_updated:
@@ -383,49 +430,172 @@ def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
 	tmin = 0.01
 	tmax = 10
 	g_best = 99999999999
-	g_best_trail = []
+	g_best_trail_walk = []
 	g_best_list_allocated = []
 
 	# Inicializa a trilha de feromonio
-	trail = Trail(problem, tmax)
-	same_best = 0
+	trail_feromone = Trail(problem, tmax)
+	same_best_generation = 0
+	same_best_improvement = 0
 
 	# Fase de construção das soluções
 	for i in range(n_cycles):
 		solution_ant = []
 		for j in range(n_ants):
-			solution_ant.append(ant_walk(alpha, beta, trail, courses, problem, rooms))
+			solution_ant.append(ant_walk_generate(alpha, beta, trail_feromone, courses, problem, rooms))
 
 		# Retorna a melhor solução das formigas
-		#TODO: Ao retornar a melhor solução, deve-se vir modificado as disciplinas originais
 		c_best = get_best_solution(solution_ant, courses, problem, rooms)
-		best_trail, best_list_allocated, best_value, best_solution_courses = c_best
+		best_trail_walk, best_list_allocated, best_value, best_solution_courses = c_best
 
-		# Atualiza a melhor solução global
+		# Faça um while se em 10 tentativas não houver melhoria, pare
+		while same_best_improvement < 10:
+			# Fase de melhoria das soluções
+			best_value, best_list_allocated, best_trail_walk = ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses, problem)
+			# Imprime a solução atual
+			print("Melhor solução:")
+			best_trail_walk.printTrailExpressive(problem, courses, rooms, best_list_allocated)
+			print("Penalidade:")
+			print(best_value)
+			# Se a nova solução for melhor, atualiza a melhor solução
+			if best_value < g_best:
+				g_best = best_value
+				g_best_trail_walk = best_trail_walk
+				g_best_list_allocated = best_list_allocated
+				same_best_improvement = 0
+			else:
+				same_best_improvement += 1
+
+		# Se a nova solução for melhor, atualiza a melhor solução
 		if best_value < g_best:
 			g_best = best_value
-			g_best_trail = best_trail
+			g_best_trail_walk = best_trail_walk
 			g_best_list_allocated = best_list_allocated
-			update_course(courses, best_solution_courses)
-			same_best = 0
-		else:
-			same_best += 1
-			if same_best == 5:
-				print("Same best multiple times")
-				break
+			same_best_generation = 0
 
 		# Atualiza a trilha de feromonio
-		trail.updateTrail(best_list_allocated, best_value, g_best)
+		trail_feromone.updateTrail(best_list_allocated, best_value, g_best)
 		# Evapora a trilha de feromonio
-		trail.evaporateTrail(rho, tmin, tmax, problem)
+		trail_feromone.evaporateTrail(rho, tmin, tmax, problem)
 		print("Melhor solução global:")
-		g_best_trail.printTrailExpressive(problem, courses, rooms, g_best_list_allocated)
+		g_best_trail_walk.printTrailExpressive(problem, courses, rooms, g_best_list_allocated)
 		print("Penalidade:")
 		print(g_best)
 
-# TODO: fazer a função de melhoria "improve_solution" dentro de uma outra "ant_walk"
-# TODO: Que vai ser chamada dentro do "ant_colony_optimization" que faça swap e verifique hard constraints
-def ant_walk(alpha, beta, trail, courses, problem, rooms):
+def ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses, problem):
+	aux_best_list_alocated = best_list_allocated.copy()
+	aux_best_trail_walk = best_trail_walk.copy()
+
+	# Sorteia 1 alocação da best_list_allocated
+	allocated = random.choice(aux_best_list_alocated)
+	al_course, al_room, al_day, al_period = allocated
+	# Sorteia 1 sala, 1 dia e 1 periodo aleatório
+	random_room = random.randrange(problem.rooms)
+	random_day = random.randrange(problem.days)
+	random_period = random.randrange(problem.periods_per_day)
+	# Verifica se o slot sorteado está ou não ocupado
+	if aux_best_trail_walk.check_available(al_course, random_room, random_day, random_period, problem):
+		# Avalia o efeito do move e executa caso seja melhor que a solução atual
+		# Se for melhor, atualiza a melhor solução
+		course = courses[al_course]
+		move(aux_best_trail_walk, course, problem, courses, random_room, random_day, random_period)
+		# Modifica o allocated para o novo slot
+		aux_best_list_alocated.remove(allocated)
+		aux_best_list_alocated.append([al_course, random_room, random_day, random_period])
+		# Avalia a nova solução
+		value, updated_courses = evaluate_solution(aux_best_list_alocated, courses, problem, rooms, aux_best_trail_walk)
+	#Faz um swap
+	else:
+		course_a = courses[al_course]
+		# Busca o curso alocado na lista de alocações
+		for i in aux_best_list_alocated:
+			index_course, room, day, period = i
+			if room == random_room and day == random_day and period == random_period:
+				course_b = courses[index_course]
+				break
+		if course_b == []:
+			throw("Erro: curso não encontrado")
+
+		# Cria os dois slots a serem trocados do course_a e course_b
+		slot_a = [al_room, al_day, al_period]
+		slot_b = [random_room, random_day, random_period]
+		# Faz o swap
+		swap(aux_best_trail_walk, course_a, course_b, problem, courses, slot_a, slot_b)
+		# Modifica o allocated para o novo slot
+		aux_best_list_alocated.remove(allocated)
+		aux_best_list_alocated.append([al_course, room, day, period])
+		# Avalia a nova solução
+		value, updated_courses = evaluate_solution(aux_best_list_alocated, courses, problem, rooms, aux_best_trail_walk)
+
+	# Se a nova solução for melhor, atualiza a melhor solução
+	if value < best_value:
+		update_course(courses, updated_courses)
+		return value, aux_best_list_alocated, aux_best_trail_walk
+	else:
+		return best_value, best_list_allocated, best_trail_walk
+
+def move(best_trail, course, problem, courses, room, day, period):
+	# Dado uma disciplina, retorna uma lista de disciplinas conflitantes
+	courses_conflicts = course.get_conflicts_names()
+	courses_conflicts_indexes = get_courses_indexes(courses, courses_conflicts)
+
+	if course.check_constraint_matrix(day, period) \
+			and best_trail.check_conflicts_same_period(courses_conflicts_indexes, problem, day, period):
+		# Se o slot sorteado estiver disponível, aloca a disciplina no slot escolhido
+		best_trail.setTrail(course.index_in_trail, room, day, period)
+		# Adiciona o dia na lista de dias que a disciplina foi alocada
+		course.add_different_days(day)
+		# Adiciona a sala na lista de salas que a disciplina foi alocada
+		course.add_different_rooms(room)
+		# Limpa a alocação antiga
+		best_trail = clear_allocated(course, room, day, period, best_trail)
+
+
+def swap(best_trail, course_a, course_b, problem, courses, slot_a, slot_b):
+	# Dado uma disciplina, retorna uma lista de disciplinas conflitantes
+	courses_conflicts_a = course_a.get_conflicts_names()
+	courses_conflicts_indexes_a = get_courses_indexes(courses, courses_conflicts_a)
+	courses_conflicts_b = course_b.get_conflicts_names()
+	courses_conflicts_indexes_b = get_courses_indexes(courses, courses_conflicts_b)
+
+	room_a, day_a, period_a = slot_a
+	room_b, day_b, period_b = slot_b
+
+	verif_1 = best_trail.check_available(course_a.index_in_trail, room_b, day_b, period_b, problem)
+	verif_2 = best_trail.check_available(course_b.index_in_trail, room_a, day_a, period_a, problem)
+	verif_3 = best_trail.check_conflicts_same_period(courses_conflicts_indexes_a, problem, day_b, period_b)
+	verif_4 = best_trail.check_conflicts_same_period(courses_conflicts_indexes_b, problem, day_a, period_a)
+
+	if verif_1 and verif_2 and verif_3 and verif_4:
+		# Se os slots sorteados estiverem disponíveis, aloca a disciplina no slot escolhido
+		best_trail.setTrail(course_a.index_in_trail, room_b, day_b, period_b)
+		best_trail.setTrail(course_b.index_in_trail, room_a, day_a, period_a)
+		# Adiciona o dia na lista de dias que a disciplina foi alocada
+		course_a.add_different_days(day_b)
+		course_b.add_different_days(day_a)
+		# Adiciona a sala na lista de salas que a disciplina foi alocada
+		course_a.add_different_rooms(room_b)
+		course_b.add_different_rooms(room_a)
+		# Limpa a alocação antiga
+		best_trail = clear_allocated(course_a, room_a, day_a, period_a, best_trail)
+		best_trail = clear_allocated(course_b, room_b, day_b, period_b, best_trail)
+
+
+
+
+def clear_allocated(course, room, day, period, best_trail):
+	# Limpa a alocação de uma disciplina em um slot
+	best_trail.setTrail(course.index_in_trail, room, day, period, 0)
+	# Remove o dia da lista de dias que a disciplina foi alocada
+	if course.check_unique_day(day):
+		course.remove_different_days(day)
+	# Remove a sala da lista de salas que a disciplina foi alocada
+	if course.check_unique_room(room):
+		course.remove_different_rooms(room)
+
+	return best_trail
+
+def ant_walk_generate(alpha, beta, trail, courses, problem, rooms):
 	not_visited = []
 	for i in courses:
 		not_visited.append(i.copy())
@@ -506,7 +676,11 @@ def calculate_probability(slot, course, alpha, beta, walk, problem, trail, rooms
 	# print(penality3)
 	penality4 = soft_rule_4(slot, course)
 	# print(penality4)
-	value = (pheronome ** alpha) + ((1 / (penality1 + (penality2*5) + (penality3*2) + penality4)) ** beta)
+	all_penality = penality1 + (penality2*5) + (penality3*2) + penality4
+	if all_penality == 0:
+		value = pheronome ** alpha
+	else:
+		value = (pheronome ** alpha) + ((1/all_penality) ** beta)
 	return value
 
 def evaluate_solution(list_allocated, courses, problem, rooms, walk):
@@ -614,8 +788,8 @@ def set_owner_curricula(courses, curricula):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 	# read file
-	file = open("Instancias/toy.ctt", "r")
-	# file = open("Instancias/comp01.ctt", "r")
+	# file = open("Instancias/toy.ctt", "r")
+	file = open("Instancias/comp01.ctt", "r")
 
 	problem, courses, rooms, curricula = read_file(file)
 	# Transforma o nome do professor em um currículo
