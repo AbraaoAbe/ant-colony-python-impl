@@ -1,4 +1,5 @@
 import random as random
+import time as time
 
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
@@ -142,7 +143,8 @@ class Course:
 		return self.min_days - len(self.different_days)
 
 	def remove_different_days(self, day):
-		self.different_days.remove(day)
+		if day in self.different_days:
+			self.different_days.remove(day)
 		#Remove somente 1 dia da lista com todos os dias
 		self.all_days.remove(day)
 
@@ -156,7 +158,8 @@ class Course:
 		self.all_rooms.append(room)
 
 	def remove_different_rooms(self, room):
-		self.different_rooms.remove(room)
+		if room in self.different_rooms:
+			self.different_rooms.remove(room)
 		#Remove somente 1 sala da lista com todas as salas
 		self.all_rooms.remove(room)
 
@@ -326,7 +329,10 @@ class Trail:
 		return self.matrix[course][(room * self.timeslots) + (day * self.periods) + period]
 
 	def updateTrail(self, best_list_allocated, best_value, global_value):
-		reward = 1 / (1 + global_value - best_value)
+		div = 1.0 / (1.0 + global_value - best_value)
+		if div == 0:
+			div = 0.01
+		reward = 1.0 / div
 		# Manter os updates positivos
 		if reward < 0:
 			reward = reward * -1
@@ -349,6 +355,9 @@ class Trail:
 
 
 	def printTrail(self):
+		for i in range(problem.rooms * self.timeslots):
+			print(i , end=" ")
+		print("\n")
 		for i in range(problem.courses):
 			print(self.matrix[i])
 		print("\n")
@@ -367,6 +376,33 @@ class Trail:
 				continue
 			elif self.getTrail(i, room, day, period) != 0:
 				return False
+		return True
+
+	def extract_slot_list(self, problem):
+		# Retorna uma lista com todos os slots que a disciplina está alocada
+		slot_list = []
+		for x in range(problem.courses):
+			for i in range(problem.rooms):
+				for j in range(problem.days):
+					for k in range(problem.periods_per_day):
+						if self.getTrail(x, i, j, k) != 0:
+							slot_list.append([x, i, j, k])
+		return slot_list
+
+	def recheck_available(self, course, room, day, period, problem, alocaded_list):
+		# Verifica se o slot está disponível para todas as disciplinas
+		for i in range(problem.courses):
+			if i == course:
+				continue
+			else:
+				x = self.getTrail(i, room, day, period)
+				index = room * self.timeslots + day * self.periods + period
+				if x != 0:
+					print("Disciplina: " + str(i) + " Sala: " + str(room) + " Dia: " + str(day) + " Período: " + str(period) + " Valor: " + str(x))
+					print("Index: " + str(index))
+					self.printTrail()
+
+					return False
 		return True
 
 	# Método para verificar as disciplinas que possuem conflito de período com a disciplina atual
@@ -423,7 +459,7 @@ def update_course(courses_original, courses_updated):
 				j.different_rooms = i.different_rooms
 				break
 
-def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
+def ant_colony_optimization(seconds, n_ants, problem, courses, rooms):
 	alpha = 2
 	beta = 5
 	rho = 0.05
@@ -438,9 +474,13 @@ def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
 	same_best_generation = 0
 	same_best_improvement = 0
 
+	# Fazer o looping pelo tempo de execução
+	start_time = time.time()
+
+	solution_ant = []
+
 	# Fase de construção das soluções
-	for i in range(n_cycles):
-		solution_ant = []
+	while time.time() - start_time < seconds:
 		for j in range(n_ants):
 			solution_ant.append(ant_walk_generate(alpha, beta, trail_feromone, courses, problem, rooms))
 
@@ -448,38 +488,37 @@ def ant_colony_optimization(n_cycles, n_ants, problem, courses, rooms):
 		c_best = get_best_solution(solution_ant, courses, problem, rooms)
 		best_trail_walk, best_list_allocated, best_value, best_solution_courses = c_best
 
+		best_list_extrated = best_trail_walk.extract_slot_list(problem)
+		best_list_allocoted = sorted(best_list_extrated, key=lambda x: x[0])
 		# Faça um while se em 10 tentativas não houver melhoria, pare
-		while same_best_improvement < 10:
+		while True:
 			# Fase de melhoria das soluções
-			best_value, best_list_allocated, best_trail_walk = ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses, problem)
-			# Imprime a solução atual
-			print("Melhor solução:")
-			best_trail_walk.printTrailExpressive(problem, courses, rooms, best_list_allocated)
-			print("Penalidade:")
-			print(best_value)
+			improved_best_value, improved_best_list_allocated, improved_best_trail_walk = \
+				ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses, problem)
 			# Se a nova solução for melhor, atualiza a melhor solução
-			if best_value < g_best:
-				g_best = best_value
-				g_best_trail_walk = best_trail_walk
-				g_best_list_allocated = best_list_allocated
+			if improved_best_value < g_best:
+				g_best = improved_best_value
+				g_best_trail_walk = improved_best_trail_walk.copy()
+				g_best_list_allocated = improved_best_list_allocated.copy()
 				same_best_improvement = 0
+				print("Nova Melhor solução global encontrada:")
+				print(g_best)
+				extract_slot_list = g_best_trail_walk.extract_slot_list(problem)
+				print (extract_slot_list == g_best_list_allocated)
 			else:
 				same_best_improvement += 1
-
-		# Se a nova solução for melhor, atualiza a melhor solução
-		if best_value < g_best:
-			g_best = best_value
-			g_best_trail_walk = best_trail_walk
-			g_best_list_allocated = best_list_allocated
-			same_best_generation = 0
+				if same_best_improvement == 10:
+					print("Não houve melhoria em 10 tentativas")
+					same_best_improvement = 0
+					break
 
 		# Atualiza a trilha de feromonio
 		trail_feromone.updateTrail(best_list_allocated, best_value, g_best)
 		# Evapora a trilha de feromonio
 		trail_feromone.evaporateTrail(rho, tmin, tmax, problem)
+		# print("Melhor solução global:")
+		# g_best_trail_walk.printTrailExpressive(problem, courses, rooms, g_best_list_allocated)
 		print("Melhor solução global:")
-		g_best_trail_walk.printTrailExpressive(problem, courses, rooms, g_best_list_allocated)
-		print("Penalidade:")
 		print(g_best)
 
 def ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses, problem):
@@ -495,7 +534,9 @@ def ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses,
 	random_period = random.randrange(problem.periods_per_day)
 	# Verifica se o slot sorteado está ou não ocupado
 	value = best_value
-	if aux_best_trail_walk.check_available(al_course, random_room, random_day, random_period, problem):
+	verify = aux_best_trail_walk.check_available(al_course, random_room, random_day, random_period, problem)
+
+	if verify:
 		# Avalia o efeito do move e executa caso seja melhor que a solução atual
 		# Se for melhor, atualiza a melhor solução
 		course = courses[al_course]
@@ -511,13 +552,18 @@ def ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses,
 	else:
 		course_a = courses[al_course]
 		# Busca o curso alocado na lista de alocações
+		course_b = []
 		for i in aux_best_list_alocated:
 			index_course, room, day, period = i
 			if room == random_room and day == random_day and period == random_period:
 				course_b = courses[index_course]
 				break
 		if course_b == []:
-			throw("Erro: curso não encontrado")
+			print("Erro: curso não encontrado")
+			print(aux_best_list_alocated)
+			extract_slot_list = aux_best_trail_walk.extract_slot_list(problem)
+			verify = aux_best_trail_walk.recheck_available(al_course, random_room, random_day, random_period, problem, aux_best_list_alocated)
+
 
 		# Cria os dois slots a serem trocados do course_a e course_b
 		slot_a = [al_room, al_day, al_period]
@@ -805,6 +851,7 @@ if __name__ == '__main__':
 	# Atribui o curriculo de cada disciplina para a disciplina
 	set_owner_curricula(courses, curricula)
 
-	ant_colony_optimization(10, 5, problem, courses, rooms)
+	thiry_minutes = 60 * 30
+	ant_colony_optimization(thiry_minutes, 5, problem, courses, rooms)
 
 
