@@ -51,7 +51,7 @@ import matplotlib.pyplot as plt
 # sendo que (α1,α2,α3,α4) = (1,5,2,1) representa os pesos atribuídos, respectivamente, a cada
 # uma das restrições fracas S1-S4.
 
-yy_benchmark = 108
+yy_benchmark = 120
 
 
 
@@ -79,7 +79,6 @@ class Course:
 		self.occupancy = occupancy
 		self.constraint_matrix = []
 		self.curricula = []
-		#TODO: atualizar na lista courses original essas duas listas após alocar
 		self.different_days = []
 		self.different_rooms = []
 		self.all_days = []
@@ -227,10 +226,10 @@ class Curricula_and_Teacher:
 		return "Nome: " + self.name + "\n" + "Tamanho: " + str(self.size_courses) + "\n" + "Disciplinas: " + str(self.courses) + "\n" + "Professor: " + str(self.teacher) + "\n"
 
 data_plot = []
+global cout_iter
 def plot_algorithm_progress(data):
 	# Descompacta a lista de tuplas em listas separadas para x e y
 	x_values, y_values = zip(*data)
-	print(data)
 
 	# Plotagem do desenvolvimento do algoritmo ao longo das iterações
 	plt.plot(x_values, y_values, label="Desenvolvimento do Algoritmo")
@@ -389,10 +388,14 @@ class Trail:
 	def printTrailExpressive(self, problem, courses, rooms, list_allocated):
 		for i in list_allocated:
 			index_course, room, day, period = i
-			print("Disciplina: " + courses[index_course].name + " Sala: " + rooms[room].name + " Dia: " + str(day) + " Período: " + str(period))
+			print(courses[index_course].name + " " + rooms[room].name + " " + str(day) +" " +str(period))
 		print("\n")
 
-
+	def printTrailExpressiveFile(self, problem, courses, rooms, list_allocated, file):
+		for i in list_allocated:
+			index_course, room, day, period = i
+			file.write(courses[index_course].name + " " + rooms[room].name + " " + str(day) +" " +str(period) + "\n")
+		file.write("\n")
 	def check_available(self, course, room, day, period, problem):
 		# Verifica se o slot está disponível para todas as disciplinas
 		for i in range(problem.courses):
@@ -529,6 +532,8 @@ def ant_colony_optimization(seconds, n_ants, problem, courses, rooms):
 		# Evapora a trilha de feromonio
 		trail_feromone.evaporateTrail(rho, tmin, tmax, problem)
 
+	return g_best, g_best_list_allocated, g_best_trail_walk
+
 def ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses, problem, trail_feromone):
 	aux_best_list_alocated = best_list_allocated.copy()
 	aux_best_trail_walk = best_trail_walk.copy()
@@ -543,7 +548,10 @@ def ant_walk_improve( best_trail_walk, best_list_allocated, best_value, courses,
 	for i in aux_best_list_alocated:
 		index_course, room, day, period = i
 		if index_course == choose_index_course:
-			allocated_list.append(i)
+			if room == choose_room and day == choose_day and period == choose_period:
+				continue
+			else:
+				allocated_list.append(i)
 
 	allocated = random.choice(allocated_list)
 
@@ -863,23 +871,71 @@ def set_owner_curricula(courses, curricula):
 					break
 
 
+def get_instancies_names():
+	instances = []
+	for i in range(1, 22):
+		if i < 10:
+			instances.append("Instancias/comp0" + str(i) + ".ctt")
+		else:
+			instances.append("Instancias/comp" + str(i) + ".ctt")
+	return instances
+
+def get_result_instacies_names():
+	instances = []
+	for i in range(1, 22):
+		if i < 10:
+			instances.append("Results/comp0" + str(i) + ".txt")
+		else:
+			instances.append("Results/comp" + str(i) + ".txt")
+	return instances
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 	# read file
-	#file = open("Instancias/toy.ctt", "r")
-	# file = open("Instancias/comp01.ctt", "r")
-	# file = open("Instancias/comp03.ctt", "r")
-	file = open("Instancias/comp06.ctt", "r")
 
-	problem, courses, rooms, curricula = read_file(file)
-	# Transforma o nome do professor em um currículo
-	create_teacher_curricula(courses, curricula)
-	# Atribui o curriculo de cada disciplina para a disciplina
-	set_owner_curricula(courses, curricula)
+	instances = get_instancies_names()
+	results = get_result_instacies_names()
 
-	ant_colony_optimization(yy_benchmark, 5, problem, courses, rooms)
-	# ant_colony_optimization(10, 5, problem, courses, rooms)
+	final_results = []
 
-	plot_algorithm_progress(data_plot)
+	for i in range(len(instances)):
+		file_name = instances[i]
+		file = open(file_name, "r")
+		data_plot = []
+		cout_iter = 0
+
+		problem, courses, rooms, curricula = read_file(file)
+		# Transforma o nome do professor em um currículo
+		create_teacher_curricula(courses, curricula)
+		# Atribui o curriculo de cada disciplina para a disciplina
+		set_owner_curricula(courses, curricula)
+
+		g_best = 99999999999
+		g_best_trail_walk = []
+		g_best_list_allocated = []
+		all_bests = []
+		for j in range(5):
+			best, best_list_allocated, best_trail_walk = ant_colony_optimization(yy_benchmark, 5, problem, courses, rooms)
+			all_bests.append(best)
+			if best < g_best:
+				g_best = best
+				g_best_trail_walk = best_trail_walk.copy()
+				g_best_list_allocated = best_list_allocated.copy()
+
+		mean = sum(all_bests) / len(all_bests)
+		minimum = min(all_bests)
+
+		write_file = open(results[i], "w")
+		g_best_trail_walk.printTrailExpressiveFile(problem, courses, rooms, g_best_list_allocated, write_file)
+		write_file.close()
+		iter = data_plot[-1][0]
+		final_results.append([file_name, g_best, iter, mean, minimum])
+
+	#escreve o resultado final em um arquivo
+	write_file = open("Results/final_results.txt", "w")
+	for i in final_results:
+		write_file.write("Instancia: " + i[0] + ", " + "Melhor solução: " + str(i[1]) + ", " + "Iterações: " + str(i[2]) + ", " + "Média: " + str(i[3]) + ", " + "Mínimo: " + str(i[4]) + "\n")
+
+	# plot_algorithm_progress(data_plot)
 
 
